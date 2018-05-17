@@ -79,6 +79,7 @@ command
     = (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
     <|> (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
     <|> (While <$> (text "while" *> expression) <*> block <?> "while loop")
+    <|> (Return <$> (text "return" *> expression) <?> "return statement")
     <|> (Declaration <$> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <?> "declaration")
     <|> (Assignment <$> identifier <*> (text "=" *> expression) <?> "assignment")
 
