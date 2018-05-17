@@ -132,4 +132,5 @@ atom
     <|> Negation <$> (text "!" *> expression)
     <|> Number <$> int
     <|> try (Boolean <$> bool)
+    <|> try (Call <$> identifier <*> (text "(" *> (expression `sepBy` text ",") <* text ")"))
     <|> Variable <$> identifier

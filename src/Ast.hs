@@ -22,6 +22,7 @@ data Expression
     | Number Int
     | Boolean Bool
     | Variable Identifier
+    | Call Identifier [Expression]
     deriving (Eq, Show)
 
 type Identifier = Text
