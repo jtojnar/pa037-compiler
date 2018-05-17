@@ -8,15 +8,17 @@ import Data.Char (isDigit, ord)
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Parsec ((<?>), char, digit, eof, letter, sepBy, spaces, string, try)
-import Text.Parsec.Text (Parser)
+import Text.Megaparsec ((<?>), Parsec, eof, sepBy, try)
+import Text.Megaparsec.Char (letterChar, char, digitChar, space, string)
 
 default (Text)
 
 -- Attoparsec compatibility
 
+type Parser = Parsec Void Text
+
 decimal :: Integral a => Parser a
-decimal = foldl step 0 <$> some digit
+decimal = foldl step 0 <$> some digitChar
     where step a c = a * 10 + fromIntegral (ord c - 48)
 
 signed :: Num a => Parser a -> Parser a
@@ -28,34 +30,34 @@ endOfInput :: Parser ()
 endOfInput = eof
 
 skipSpace :: Parser ()
-skipSpace = spaces
+skipSpace = space
 
 -- HELPERS
 
 word :: Parser Text
-word  = T.pack <$> some letter <* skipSpace
+word  = T.pack <$> some letterChar <* skipSpace
 
-text :: String -> Parser String
+text :: Text -> Parser Text
 text s = string s <* skipSpace
 
 -- LEXEMES
 
 identifier :: Parser Identifier
-identifier = word <* skipSpace <?> "identifier"
+identifier = (word <?> "identifier") <* skipSpace
 
 int :: Parser Int
-int = signed decimal <* skipSpace <?> "number"
+int = (signed decimal <?> "number") <* skipSpace
 
 bool :: Parser Bool
-bool = (string "true" *> pure True <|> string "false" *> pure False) <* skipSpace <?> "boolean"
+bool = ((string "true" *> pure True <|> string "false" *> pure False) <?> "boolean") <* skipSpace
 
 -- NON-TERMINALS
 
 typeVal :: Parser Type
 typeVal
-    = (pure TInt32 <* text "int32"
+    = ((pure TInt32 <* text "int32"
     <|> pure TChar <* text "char"
-    <|> pure TBool <* text "bool") <* skipSpace <?> "type"
+    <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
 program :: Parser Program
 program = skipSpace *> many funDef <* endOfInput
@@ -74,10 +76,10 @@ block = text "{" *> commands <* text "}"
 
 command :: Parser Command
 command
-    = try (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block))
-    <|> try (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block)
-    <|> try (While <$> (text "while" *> expression) <*> block)
-    <|> Assignment <$> identifier <*> (text ":" *> typeVal) <*> ((text "=" <?> "assignment operator") *> expression)
+    = (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
+    <|> (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
+    <|> (While <$> (text "while" *> expression) <*> block <?> "while loop")
+    <|> (Assignment <$> identifier <*> (text ":" *> typeVal) <*> ((text "=" <?> "assignment operator") *> expression) <?> "assignment")
 
 {-| Expressions formed by binary operators with priority 2
 -}

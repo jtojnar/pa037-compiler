@@ -10,7 +10,7 @@ import Data.Text.IO (getContents, readFile)
 import Parser (program)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
-import Text.Parsec (parseTest)
+import Text.Megaparsec (parseTest)
 
 default (Text)
 
