@@ -36,5 +36,6 @@ data Command
     = Conditional [(Expression, Commands)] (Maybe Commands)
     | ForEach Identifier Expression Commands
     | While Expression Commands
-    | Assignment Identifier Type Expression
+    | Declaration Identifier Type (Maybe Expression)
+    | Assignment Identifier Expression
     deriving (Eq, Show)

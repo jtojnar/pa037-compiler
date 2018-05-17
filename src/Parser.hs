@@ -79,7 +79,8 @@ command
     = (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
     <|> (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
     <|> (While <$> (text "while" *> expression) <*> block <?> "while loop")
-    <|> (Assignment <$> identifier <*> (text ":" *> typeVal) <*> ((text "=" <?> "assignment operator") *> expression) <?> "assignment")
+    <|> (Declaration <$> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <?> "declaration")
+    <|> (Assignment <$> identifier <*> (text "=" *> expression) <?> "assignment")
 
 {-| Expressions formed by binary operators with priority 2
 -}
