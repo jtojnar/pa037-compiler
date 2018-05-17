@@ -8,7 +8,7 @@ import Data.Char (isDigit, ord)
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Parsec ((<?>), char, digit, eof, letter, sepBy, spaces, string)
+import Text.Parsec ((<?>), char, digit, eof, letter, sepBy, spaces, string, try)
 import Text.Parsec.Text (Parser)
 
 default (Text)
@@ -74,27 +74,58 @@ block = text "{" *> commands <* text "}"
 
 command :: Parser Command
 command
-    = Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block)
-    <|> ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block
-    <|> While <$> (text "while" *> expression) <*> block
-    <|> Assignment <$> identifier <*> (text ":" *> typeVal) <*> (text "=" *> expression)
+    = try (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block))
+    <|> try (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block)
+    <|> try (While <$> (text "while" *> expression) <*> block)
+    <|> Assignment <$> identifier <*> (text ":" *> typeVal) <*> ((text "=" <?> "assignment operator") *> expression)
 
+{-| Expressions formed by binary operators with priority 2
+-}
 expression :: Parser Expression
 expression
+    = try (Disjunction <$> expression3 <* text "||" <*> expression)
+    <|> expression3
+
+{-| Expressions formed by binary operators with priority 3
+-}
+expression3 :: Parser Expression
+expression3
+    = try (Conjunction <$> expression4 <* text "&&" <*> expression)
+    <|> expression4
+
+{-| Expressions formed by binary operators with priority 4
+-}
+expression4 :: Parser Expression
+expression4
+    = try (Equality <$> expression6 <* text "==" <*> expression)
+    <|> try (Inequality <$> expression6 <* text "!=" <*> expression)
+    <|> try (LessThan <$> expression6 <* text "<" <*> expression)
+    <|> try (LessThanEqual <$> expression6 <* text "<=" <*> expression)
+    <|> try (Greater  <$> expression6 <* text ">" <*> expression)
+    <|> try (GreaterThanEqual <$> expression6 <* text ">=" <*> expression)
+    <|> expression6
+
+{-| Expressions formed by binary operators with priority 6
+-}
+expression6 :: Parser Expression
+expression6
+    = try (Addition <$> expression7 <* text "+" <*> expression)
+    <|> try (Subtraction <$> expression7 <* text "-" <*> expression)
+    <|> expression7
+
+{-| Expressions formed by binary operators with priority 7
+-}
+expression7 :: Parser Expression
+expression7
+    = try (Multiplication <$> atom <* text "*" <*> expression)
+    <|> try (Division <$> atom <* text "/" <*> expression)
+    <|> atom
+
+{-| Atomic expressions and unary operator -}
+atom :: Parser Expression
+atom
     = text "(" *> expression <* text ")"
-    <|> Addition <$> expression <* text "+" <*> expression
-    <|> Subtraction <$> expression <* text "-" <*> expression
-    <|> Multiplication <$> expression <* text "*" <*> expression
-    <|> Division <$> expression <* text "/" <*> expression
-    <|> Conjunction <$> expression <* text "&&" <*> expression
-    <|> Disjunction <$> expression <* text "||" <*> expression
     <|> Negation <$> (text "!" *> expression)
-    <|> Equality <$> expression <* text "==" <*> expression
-    <|> Inequality <$> expression <* text "!=" <*> expression
-    <|> LessThan <$> expression <* text "<" <*> expression
-    <|> LessThanEqual <$> expression <* text "<=" <*> expression
-    <|> Greater  <$> expression <* text ">" <*> expression
-    <|> GreaterThanEqual <$> expression <* text ">=" <*> expression
     <|> Number <$> int
-    <|> Boolean <$> bool
+    <|> try (Boolean <$> bool)
     <|> Variable <$> identifier
