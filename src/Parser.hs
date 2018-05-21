@@ -69,7 +69,7 @@ funDef :: Parser (Identifier, FunctionDefinition)
 funDef = (,) <$> (text "fn" *> identifier) <*> (text "(" *> ((,,) <$> arguments <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands) <* text "}"))
 
 commands :: Parser Commands
-commands = command `sepBy` text ";"
+commands = many command
 
 block :: Parser Commands
 block = text "{" *> commands <* text "}"
@@ -79,9 +79,9 @@ command
     = (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
     <|> (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
     <|> (While <$> (text "while" *> expression) <*> block <?> "while loop")
-    <|> (Return <$> (text "return" *> expression) <?> "return statement")
-    <|> (Declaration <$> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <?> "declaration")
-    <|> (Assignment <$> identifier <*> (text "=" *> expression) <?> "assignment")
+    <|> (Return <$> (text "return" *> expression) <* text ";" <?> "return statement")
+    <|> (Declaration <$> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <* text ";" <?> "declaration")
+    <|> (Assignment <$> identifier <*> (text "=" *> expression) <* text ";" <?> "assignment")
 
 {-| Expressions formed by binary operators with priority 2
 -}
