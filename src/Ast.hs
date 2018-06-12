@@ -29,6 +29,8 @@ type Identifier = Text
 
 type Program = [(Identifier, FunctionDefinition)]
 
+type BinaryOperator = Expression -> Expression -> Expression
+
 type FunctionDefinition = ([(Identifier, Type)], Type, Commands)
 
 type Commands = [Command]

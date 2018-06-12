@@ -8,7 +8,7 @@ import Data.Char (isDigit, ord)
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Megaparsec ((<?>), Parsec, eof, sepBy, try)
+import Text.Megaparsec ((<?>), Parsec, eof, sepBy)
 import Text.Megaparsec.Char (letterChar, char, digitChar, space, string)
 
 default (Text)
@@ -33,6 +33,15 @@ skipSpace :: Parser ()
 skipSpace = space
 
 -- HELPERS
+
+{-| Parse binary operations or just the left hand side (go to the next level)
+This is a left-associative parser
+-}
+binaryOperationOrNext :: Parser Expression -> Parser BinaryOperator -> Parser Expression -> Parser Expression
+binaryOperationOrNext left operators right = applyOperation <$> left <*> optional ((,) <$> operators <*> right)
+    where
+        applyOperation left (Just (op, right)) = op left right
+        applyOperation left Nothing = left
 
 word :: Parser Text
 word  = T.pack <$> some letterChar <* skipSpace
@@ -87,43 +96,59 @@ command
 -}
 expression :: Parser Expression
 expression
-    = try (Disjunction <$> expression3 <* text "||" <*> expression)
-    <|> expression3
+    = binaryOperationOrNext expression3 operators expression
+    where
+        operators
+            = text "||" *> pure Disjunction
 
 {-| Expressions formed by binary operators with priority 3
 -}
 expression3 :: Parser Expression
 expression3
-    = try (Conjunction <$> expression4 <* text "&&" <*> expression)
-    <|> expression4
+    = binaryOperationOrNext expression4 operators expression
+    where
+        operators
+            = text "&&" *> pure Conjunction
 
 {-| Expressions formed by binary operators with priority 4
 -}
 expression4 :: Parser Expression
 expression4
-    = try (Equality <$> expression6 <* text "==" <*> expression)
-    <|> try (Inequality <$> expression6 <* text "!=" <*> expression)
-    <|> try (LessThan <$> expression6 <* text "<" <*> expression)
-    <|> try (LessThanEqual <$> expression6 <* text "<=" <*> expression)
-    <|> try (Greater  <$> expression6 <* text ">" <*> expression)
-    <|> try (GreaterThanEqual <$> expression6 <* text ">=" <*> expression)
-    <|> expression6
+    = binaryOperationOrNext expression6 operators expression
+    where
+        operators
+            = text "==" *> pure Equality
+            <|> text "!=" *> pure Inequality
+            <|> text "<=" *> pure LessThanEqual
+            <|> text "<" *> pure LessThan
+            <|> text ">=" *> pure GreaterThanEqual
+            <|> text ">" *> pure Greater
+
 
 {-| Expressions formed by binary operators with priority 6
 -}
 expression6 :: Parser Expression
 expression6
-    = try (Addition <$> expression7 <* text "+" <*> expression)
-    <|> try (Subtraction <$> expression7 <* text "-" <*> expression)
-    <|> expression7
+    = binaryOperationOrNext expression7 operators expression
+    where
+        operators
+            = text "+" *> pure Addition
+            <|> text "-" *> pure Subtraction
 
 {-| Expressions formed by binary operators with priority 7
 -}
 expression7 :: Parser Expression
 expression7
-    = try (Multiplication <$> atom <* text "*" <*> expression)
-    <|> try (Division <$> atom <* text "/" <*> expression)
-    <|> atom
+    = binaryOperationOrNext atom operators expression
+    where
+        operators
+            = text "*" *> pure Multiplication
+            <|> text "/" *> pure Division
+
+{-| Identifier can refer to a variable when by itself, or a function name when followed by a list of arguments -}
+callOrUse :: Identifier -> Maybe [Expression] -> Expression
+callOrUse name (Just args) = Call name args
+callOrUse name Nothing = Variable name
 
 {-| Atomic expressions and unary operator -}
 atom :: Parser Expression
@@ -131,6 +156,5 @@ atom
     = text "(" *> expression <* text ")"
     <|> Negation <$> (text "!" *> expression)
     <|> Number <$> int
-    <|> try (Boolean <$> bool)
-    <|> try (Call <$> identifier <*> (text "(" *> (expression `sepBy` text ",") <* text ")"))
-    <|> Variable <$> identifier
+    <|> Boolean <$> bool
+    <|> callOrUse <$> identifier <*> optional (text "(" *> (expression `sepBy` text ",") <* text ")")
