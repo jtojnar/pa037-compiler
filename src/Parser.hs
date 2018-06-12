@@ -105,7 +105,7 @@ expression
 -}
 expression3 :: Parser Expression
 expression3
-    = binaryOperationOrNext expression4 operators expression
+    = binaryOperationOrNext expression4 operators expression3
     where
         operators
             = text "&&" *> pure Conjunction
@@ -114,7 +114,7 @@ expression3
 -}
 expression4 :: Parser Expression
 expression4
-    = binaryOperationOrNext expression6 operators expression
+    = binaryOperationOrNext expression6 operators expression4
     where
         operators
             = text "==" *> pure Equality
@@ -129,7 +129,7 @@ expression4
 -}
 expression6 :: Parser Expression
 expression6
-    = binaryOperationOrNext expression7 operators expression
+    = binaryOperationOrNext expression7 operators expression6
     where
         operators
             = text "+" *> pure Addition
@@ -139,7 +139,7 @@ expression6
 -}
 expression7 :: Parser Expression
 expression7
-    = binaryOperationOrNext atom operators expression
+    = binaryOperationOrNext atom operators expression7
     where
         operators
             = text "*" *> pure Multiplication
@@ -154,7 +154,7 @@ callOrUse name Nothing = Variable name
 atom :: Parser Expression
 atom
     = text "(" *> expression <* text ")"
-    <|> Negation <$> (text "!" *> expression)
+    <|> Negation <$> (text "!" *> atom)
     <|> Number <$> int
     <|> Boolean <$> bool
     <|> callOrUse <$> identifier <*> optional (text "(" *> (expression `sepBy` text ",") <* text ")")
