@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Parser (program) where
+module Parser (program, expression) where
 
 import Ast
 import Control.Applicative ((<|>), optional, some, many)
