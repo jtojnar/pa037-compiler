@@ -1,0 +1,29 @@
+name: compiler
+version: 0.0.1
+synopsis: Simple compiler for PA037 course
+license: MIT
+author: Jan Tojnar
+maintainer: jtojnar@gmail.com
+category: Language
+
+executables:
+  compiler:
+    main: Main.hs
+    dependencies:
+      - base >=4.10 && <4.11
+      - megaparsec >= 6.4 && < 6.6
+      - optparse-applicative
+      - text
+    source-dirs: src
+
+tests:
+  test:
+    source-dirs: tests, src
+    main: test.hs
+    dependencies:
+      - base
+      - HUnit >= 1.6 && < 1.7
+      - megaparsec
+      - tasty >= 1.0 && < 1.2
+      - tasty-hunit >= 0.10 && < 0.11
+      - text
