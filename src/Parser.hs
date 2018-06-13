@@ -13,7 +13,7 @@ import Text.Megaparsec.Char (letterChar, char, digitChar, space, string)
 
 default (Text)
 
--- Attoparsec compatibility
+-- Attoparsec/Parsec compatibility
 
 type Parser = Parsec Void Text
 
@@ -32,16 +32,16 @@ endOfInput = eof
 skipSpace :: Parser ()
 skipSpace = space
 
--- HELPERS
-
-{-| Parse binary operations or just the left hand side (go to the next level)
-This is a left-associative parser
--}
-binaryOperationOrNext :: Parser Expression -> Parser BinaryOperator -> Parser Expression -> Parser Expression
-binaryOperationOrNext left operators right = applyOperation <$> left <*> optional ((,) <$> operators <*> right)
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+chainl1 p op = p >>= rest
     where
-        applyOperation left (Just (op, right)) = op left right
-        applyOperation left Nothing = left
+        rest l = (do
+            f <- op
+            r <- p
+            rest (f l r)
+          ) <|> pure l
+
+-- HELPERS
 
 word :: Parser Text
 word  = T.pack <$> some letterChar <* skipSpace
@@ -96,7 +96,7 @@ command
 -}
 expression :: Parser Expression
 expression
-    = binaryOperationOrNext expression3 operators expression
+    = expression3 `chainl1` operators
     where
         operators
             = text "||" *> pure Disjunction
@@ -105,7 +105,7 @@ expression
 -}
 expression3 :: Parser Expression
 expression3
-    = binaryOperationOrNext expression4 operators expression3
+    = expression4 `chainl1` operators
     where
         operators
             = text "&&" *> pure Conjunction
@@ -114,7 +114,7 @@ expression3
 -}
 expression4 :: Parser Expression
 expression4
-    = binaryOperationOrNext expression6 operators expression4
+    = expression6 `chainl1` operators
     where
         operators
             = text "==" *> pure Equality
@@ -129,7 +129,7 @@ expression4
 -}
 expression6 :: Parser Expression
 expression6
-    = binaryOperationOrNext expression7 operators expression6
+    = expression7 `chainl1` operators
     where
         operators
             = text "+" *> pure Addition
@@ -139,7 +139,7 @@ expression6
 -}
 expression7 :: Parser Expression
 expression7
-    = binaryOperationOrNext atom operators expression7
+    = atom `chainl1` operators
     where
         operators
             = text "*" *> pure Multiplication
