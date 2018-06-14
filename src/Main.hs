@@ -10,7 +10,8 @@ import Data.Text.IO (getContents, readFile)
 import Parser (program)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
-import Text.Megaparsec (parseTest)
+import Text.Megaparsec (parse, parseErrorPretty)
+import System.IO (hPutStr, stderr)
 
 default (Text)
 
@@ -42,4 +43,6 @@ main = do
     Flags { inputPath, outputPath } <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
 
-    parseTest program contents
+    case parse program inputPath contents of
+        Left err -> hPutStr stderr (parseErrorPretty err)
+        Right ast -> print ast
