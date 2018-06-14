@@ -15,3 +15,4 @@ You can compile it with [Nix](https://nixos.org/nix/) by running
 * https://hackage.haskell.org/package/megaparsec
 * https://mmhaskell.com/blog/2018/2/26/attoparsec-the-clarity-of-do-syntax
 * https://hackage.haskell.org/package/tasty
+* https://www.reddit.com/r/haskell/comments/4x22f9/labelling_ast_nodes_with_locations/

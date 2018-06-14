@@ -8,7 +8,7 @@ import Data.Char (isDigit, ord)
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Megaparsec ((<?>), Parsec, eof, sepBy)
+import Text.Megaparsec ((<?>), Parsec, eof, getPosition, sepBy)
 import Text.Megaparsec.Char (letterChar, char, digitChar, space, string)
 
 default (Text)
@@ -68,53 +68,53 @@ typeVal
     <|> pure TChar <* text "char"
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
-program :: Parser Program
+program :: Parser (Program SourcePos)
 program = skipSpace *> many funDef <* endOfInput
 
 arguments :: Parser [(Identifier, Type)]
 arguments = ((,) <$> identifier <* text ":" <*> typeVal) `sepBy` text ","
 
-funDef :: Parser (Identifier, FunctionDefinition)
+funDef :: Parser (Identifier, FunctionDefinition SourcePos)
 funDef = (,) <$> (text "fn" *> identifier) <*> (text "(" *> ((,,) <$> arguments <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands) <* text "}"))
 
-commands :: Parser Commands
+commands :: Parser (Commands SourcePos)
 commands = many command
 
-block :: Parser Commands
+block :: Parser (Commands SourcePos)
 block = text "{" *> commands <* text "}"
 
-command :: Parser Command
+command :: Parser (Command SourcePos)
 command
-    = (Conditional <$> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
-    <|> (ForEach <$> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
-    <|> (While <$> (text "while" *> expression) <*> block <?> "while loop")
-    <|> (Return <$> (text "return" *> expression) <* text ";" <?> "return statement")
-    <|> (Declaration <$> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <* text ";" <?> "declaration")
-    <|> (Assignment <$> identifier <*> (text "=" *> expression) <* text ";" <?> "assignment")
+    = (Conditional <$> getPosition <*> ((:) <$> ((,) <$> (text "if" *> expression) <*> block) <*> many ((,) <$> (text "elseif" *> expression) <*> block)) <*> optional (text "else" *> block) <?> "conditional statement")
+    <|> (ForEach <$> getPosition <*> (text "for" *> identifier) <*> (text "in" *> expression) <*> block <?> "for..in loop")
+    <|> (While <$> getPosition <*> (text "while" *> expression) <*> block <?> "while loop")
+    <|> (Return <$> getPosition <*> (text "return" *> expression) <* text ";" <?> "return statement")
+    <|> (Declaration <$> getPosition <*> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <* text ";" <?> "declaration")
+    <|> (Assignment <$> getPosition <*> identifier <*> (text "=" *> expression) <* text ";" <?> "assignment")
 
 {-| Expressions formed by binary operators with priority 2
 -}
-expression :: Parser Expression
+expression :: Parser (Expression SourcePos)
 expression
-    = expression3 `chainl1` operators
+    = getPosition <*> expression3 `chainl1` operators
     where
         operators
             = text "||" *> pure Disjunction
 
 {-| Expressions formed by binary operators with priority 3
 -}
-expression3 :: Parser Expression
+expression3 :: Parser (Expression SourcePos)
 expression3
-    = expression4 `chainl1` operators
+    = getPosition <*> expression4 `chainl1` operators
     where
         operators
             = text "&&" *> pure Conjunction
 
 {-| Expressions formed by binary operators with priority 4
 -}
-expression4 :: Parser Expression
+expression4 :: Parser (Expression SourcePos)
 expression4
-    = expression6 `chainl1` operators
+    = getPosition <*> expression6 `chainl1` operators
     where
         operators
             = text "==" *> pure Equality
@@ -127,9 +127,9 @@ expression4
 
 {-| Expressions formed by binary operators with priority 6
 -}
-expression6 :: Parser Expression
+expression6 :: Parser (Expression SourcePos)
 expression6
-    = expression7 `chainl1` operators
+    = getPosition <*> expression7 `chainl1` operators
     where
         operators
             = text "+" *> pure Addition
@@ -137,21 +137,21 @@ expression6
 
 {-| Expressions formed by binary operators with priority 7
 -}
-expression7 :: Parser Expression
+expression7 :: Parser (Expression SourcePos)
 expression7
-    = atom `chainl1` operators
+    = getPosition <*> atom `chainl1` operators
     where
         operators
             = text "*" *> pure Multiplication
             <|> text "/" *> pure Division
 
 {-| Identifier can refer to a variable when by itself, or a function name when followed by a list of arguments -}
-callOrUse :: Identifier -> Maybe [Expression] -> Expression
+callOrUse :: Identifier -> Maybe [Expression SourcePos] -> Expression SourcePos
 callOrUse name (Just args) = Call name args
 callOrUse name Nothing = Variable name
 
 {-| Atomic expressions and unary operator -}
-atom :: Parser Expression
+atom :: Parser (Expression SourcePos)
 atom
     = text "(" *> expression <* text ")"
     <|> Negation <$> (text "!" *> atom)

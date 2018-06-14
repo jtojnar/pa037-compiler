@@ -5,41 +5,41 @@ import Data.Text (Text)
 data Type = TInt32 | TChar | TBool
     deriving (Eq, Show)
 
-data Expression
-    = Addition Expression Expression
-    | Subtraction Expression Expression
-    | Multiplication Expression Expression
-    | Division Expression Expression
-    | Conjunction Expression Expression
-    | Disjunction Expression Expression
-    | Negation Expression
-    | Equality Expression Expression
-    | Inequality Expression Expression
-    | LessThan Expression Expression
-    | LessThanEqual Expression Expression
-    | Greater Expression Expression
-    | GreaterThanEqual Expression Expression
-    | Number Int
-    | Boolean Bool
-    | Variable Identifier
-    | Call Identifier [Expression]
+data Expression ann
+    = Addition ann (Expression ann) (Expression ann)
+    | Subtraction ann (Expression ann) (Expression ann)
+    | Multiplication ann (Expression ann) (Expression ann)
+    | Division ann (Expression ann) (Expression ann)
+    | Conjunction ann (Expression ann) (Expression ann)
+    | Disjunction ann (Expression ann) (Expression ann)
+    | Negation ann (Expression ann)
+    | Equality ann (Expression ann) (Expression ann)
+    | Inequality ann (Expression ann) (Expression ann)
+    | LessThan ann (Expression ann) (Expression ann)
+    | LessThanEqual ann (Expression ann) (Expression ann)
+    | Greater ann (Expression ann) (Expression ann)
+    | GreaterThanEqual ann (Expression ann) (Expression ann)
+    | Number ann Int
+    | Boolean ann Bool
+    | Variable ann Identifier
+    | Call ann Identifier [(Expression ann)]
     deriving (Eq, Show)
 
 type Identifier = Text
 
-type Program = [(Identifier, FunctionDefinition)]
+type Program ann = [(Identifier, FunctionDefinition ann)]
 
-type BinaryOperator = Expression -> Expression -> Expression
+type BinaryOperator ann = Expression ann -> Expression ann -> Expression ann
 
-type FunctionDefinition = ([(Identifier, Type)], Type, Commands)
+type FunctionDefinition ann = ([(Identifier, Type)], Type, Commands ann)
 
-type Commands = [Command]
+type Commands ann = [Command ann]
 
-data Command
-    = Conditional [(Expression, Commands)] (Maybe Commands)
-    | ForEach Identifier Expression Commands
-    | While Expression Commands
-    | Return Expression
-    | Declaration Identifier Type (Maybe Expression)
-    | Assignment Identifier Expression
+data Command ann
+    = Conditional ann [(Expression ann, Commands ann)] (Maybe (Commands ann))
+    | ForEach ann Identifier (Expression ann) (Commands ann)
+    | While ann (Expression ann) (Commands ann)
+    | Return ann (Expression ann)
+    | Declaration ann Identifier Type (Maybe (Expression ann))
+    | Assignment ann Identifier (Expression ann)
     deriving (Eq, Show)
