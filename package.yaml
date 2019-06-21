@@ -10,20 +10,24 @@ executables:
   compiler:
     main: Main.hs
     dependencies:
-      - base >=4.10 && <4.11
-      - megaparsec >= 6.4 && < 6.6
+      - base >=4.10 && <4.13
+      - hashmap >= 1.3 && < 1.4
+      - llvm-hs >= 8.0 && < 8.1
+      - megaparsec >= 7.0 && < 7.1
       - optparse-applicative
       - text
     source-dirs: src
 
 tests:
   test:
-    source-dirs: tests, src
+    source-dirs:
+      - tests
+      - src
     main: test.hs
     dependencies:
       - base
       - HUnit >= 1.6 && < 1.7
       - megaparsec
-      - tasty >= 1.0 && < 1.2
+      - tasty >= 1.0 && < 1.3
       - tasty-hunit >= 0.10 && < 0.11
       - text

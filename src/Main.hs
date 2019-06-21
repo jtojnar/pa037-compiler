@@ -10,7 +10,7 @@ import Data.Text.IO (getContents, readFile)
 import Parser (program)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
-import Text.Megaparsec (parse, parseErrorPretty)
+import Text.Megaparsec (errorBundlePretty, parse)
 import System.IO (hPutStr, stderr)
 
 default (Text)
@@ -44,5 +44,5 @@ main = do
     contents <- if inputPath == "-" then getContents else readFile inputPath
 
     case parse program inputPath contents of
-        Left err -> hPutStr stderr (parseErrorPretty err)
+        Left err -> hPutStr stderr (errorBundlePretty err)
         Right ast -> print ast
