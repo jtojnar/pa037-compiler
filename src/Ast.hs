@@ -42,4 +42,5 @@ data Command ann
     | Return ann (Expression ann)
     | Declaration ann Identifier Type (Maybe (Expression ann))
     | Assignment ann Identifier (Expression ann)
+    | CCall ann Identifier [(Expression ann)]
     deriving (Eq, Show)

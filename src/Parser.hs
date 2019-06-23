@@ -90,7 +90,7 @@ command
     <|> (While <$> getSourcePos <*> (text "while" *> expression) <*> block <?> "while loop")
     <|> (Return <$> getSourcePos <*> (text "return" *> expression) <* text ";" <?> "return statement")
     <|> (Declaration <$> getSourcePos <*> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression)) <* text ";" <?> "declaration")
-    <|> (Assignment <$> getSourcePos <*> identifier <*> (text "=" *> expression) <* text ";" <?> "assignment")
+    <|> ((\ann name p -> p ann name) <$> getSourcePos <*> identifier <*> (((text "=" *> fmap (\expr -> \ann name -> Assignment ann name expr) expression) <?> "assignment") <|> ((text "(" *> fmap (\args -> \ann name -> CCall ann name args) (expression `sepBy` text ",") <* text ")") <?> "function call")) <* text ";")
 
 {-| Expressions formed by binary operators with priority 2
 -}
