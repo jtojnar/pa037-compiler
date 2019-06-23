@@ -12,6 +12,7 @@ import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
 import System.IO (hPutStr, stderr)
+import Semer
 
 default (Text)
 
@@ -45,4 +46,6 @@ main = do
 
     case parse program inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> print ast
+        Right ast -> case typeCheck ast of
+            Left errs -> hPutStr stderr (show errs)
+            Right () -> print ast
