@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
 import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getSourcePos, sepBy)
-import Text.Megaparsec.Char (letterChar, char, digitChar, space, string)
+import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space, string)
 
 default (Text)
 
@@ -44,7 +44,7 @@ chainl1 p op = p >>= rest
 -- HELPERS
 
 word :: Parser Text
-word  = T.pack <$> some letterChar <* skipSpace
+word  = T.pack <$> some (alphaNumChar <|> char '_') <* skipSpace
 
 text :: Text -> Parser Text
 text s = string s <* skipSpace
