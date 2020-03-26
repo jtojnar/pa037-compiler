@@ -10,10 +10,10 @@ executables:
   compiler:
     main: Main.hs
     dependencies:
-      - base >=4.10 && <4.13
+      - base >=4.10 && <4.14
       - hashmap >= 1.3 && < 1.4
-      - llvm-hs >= 8.0 && < 8.1
-      - megaparsec >= 7.0 && < 7.1
+      - llvm-hs >= 9.0 && < 9.1
+      - megaparsec >= 8.0 && < 8.1
       - optparse-applicative
       - text
     source-dirs: src
