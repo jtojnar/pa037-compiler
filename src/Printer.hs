@@ -13,4 +13,5 @@ ppType :: Type -> Text
 ppType TInt32 = "int32"
 ppType TChar = "char"
 ppType TBool = "bool"
+ppType (TPtr t) = "ptr " <> ppType t
 ppType (Function args result) = "fn(" <> T.intercalate ", " (map ppType args) <> ") -> " <> ppType result
