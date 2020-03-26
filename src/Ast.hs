@@ -42,6 +42,8 @@ data Expression ann
     | GreaterThanEqual ann (Expression ann) (Expression ann)
     | Number ann Int
     | Boolean ann Bool
+    | Character ann Char
+    | String ann Text
     | Variable ann Identifier
     | Call ann Identifier [(Expression ann)]
     deriving (Eq, Show)

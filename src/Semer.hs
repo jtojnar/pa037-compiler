@@ -176,6 +176,8 @@ typeOf context (Greater ann l r) = checkOrdBinOp context l r
 typeOf context (GreaterThanEqual ann l r) = checkOrdBinOp context l r
 typeOf context (Number ann _) = pure TInt32
 typeOf context (Boolean ann _) = pure TBool
+typeOf context (Character ann _) = pure TChar
+typeOf context (String ann _) = pure (TPtr TChar)
 typeOf context (Variable ann name) =
         maybeToEither ([SemanticError [ann] ("Variable " <> name <> " not defined.")]) (contextLookupBinding name context)
 typeOf context (Call ann name args) = do

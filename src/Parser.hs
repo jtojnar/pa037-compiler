@@ -8,8 +8,9 @@ import Data.Char (isDigit, ord)
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getSourcePos, sepBy, sourceName, sourceLine, sourceColumn, unPos)
+import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getSourcePos, manyTill, satisfy, sepBy, sourceName, sourceLine, sourceColumn, unPos)
 import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space, string)
+import Text.Megaparsec.Char.Lexer (charLiteral)
 
 default (Text)
 
@@ -165,4 +166,6 @@ atom
     <|> Negation <$> pos <*> (text "!" *> atom)
     <|> Number <$> pos <*> int
     <|> Boolean <$> pos <*> bool
+    <|> Character <$> pos <*> (char '\'' *> charLiteral <* char '\'')
+    <|> String <$> pos <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"')))
     <|> callOrUse <$> pos <*> identifier <*> optional (text "(" *> (expression `sepBy` text ",") <* text ")")
