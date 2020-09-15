@@ -7,7 +7,7 @@ import Control.Applicative ((<**>), optional)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Text.IO (getContents, readFile)
-import Parser (program)
+import Parser (program, pos)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
@@ -44,7 +44,7 @@ main = do
     Flags { inputPath, outputPath } <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
 
-    case parse program inputPath contents of
+    case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
         Right ast -> case typeCheck ast of
             Left errs -> hPutStr stderr (show errs)
