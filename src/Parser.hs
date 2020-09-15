@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Parser (program, expression, pos) where
 
@@ -79,13 +80,16 @@ typeVal
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
 program :: Parser ann -> Parser (Program ann)
-program annp = skipSpace *> many (funDef annp) <* endOfInput
+program annp = skipSpace *> many ((funDef annp <|> extern)) <* endOfInput
 
 arguments :: Parser [(Identifier, Type)]
 arguments = ((,) <$> identifier <* text ":" <*> typeVal) `sepBy` text ","
 
 funDef :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
-funDef annp = (,) <$> (text "fn" *> identifier) <*> (text "(" *> ((,,) <$> arguments <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands annp) <* text "}"))
+funDef annp = (,) <$> (text "fn" *> identifier) <*> (text "(" *> ((,,) <$> arguments <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> (Just <$> commands annp)) <* text "}"))
+
+extern :: Parser (Identifier, FunctionDefinition ann)
+extern = (,) <$> (text "extern" *> identifier) <*> (text "(" *> ((,, Nothing) <$> arguments <*> (text ")" *> text "->" *> typeVal) <* text ";"))
 
 commands :: Parser ann -> Parser (Commands ann)
 commands annp = many (command annp)

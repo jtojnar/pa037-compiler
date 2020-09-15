@@ -73,7 +73,7 @@ type Program ann = [(Identifier, FunctionDefinition ann)]
 
 type BinaryOperator ann = Expression ann -> Expression ann -> Expression ann
 
-type FunctionDefinition ann = ([(Identifier, Type)], Type, Commands ann)
+type FunctionDefinition ann = ([(Identifier, Type)], Type, Maybe (Commands ann))
 
 funType :: FunctionDefinition ann -> Type
 funType (args, result, _body) = Function (map snd args) result

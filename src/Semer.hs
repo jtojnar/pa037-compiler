@@ -52,7 +52,8 @@ typeCheck program =
         functions = fmap funType (Map.fromList program)
 
 typeCheckFunction :: Map Identifier Type -> (Identifier, FunctionDefinition ann) -> Either [SemanticError ann] ()
-typeCheckFunction functions (name, (args, result, body)) = void (typeCheckCommands context body)
+typeCheckFunction functions (name, (args, result, Nothing)) = return ()
+typeCheckFunction functions (name, (args, result, Just body)) = void (typeCheckCommands context body)
     where
         context = Context {
             contextBindings = functions `Map.union` Map.fromList args,
