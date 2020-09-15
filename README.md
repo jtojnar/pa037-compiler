@@ -4,8 +4,7 @@ This is a simple compiler for PA037 course.
 
 You can compile it with [Nix](https://nixos.org/nix/) by running
 
-    nix run nixpkgs.cabal2nix -c cabal2nix --hpack --shell . > shell.nix
-    nix-build shell.nix
+    nix build
 
  then build one of the example programs with `result/bin/compiler examples/fibonacci.lang`
 
