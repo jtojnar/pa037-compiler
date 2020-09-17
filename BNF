@@ -1,0 +1,9 @@
+PROG := DEF*
+DEF := FUNDEF | EXTERN
+EXTERN := 'extern' ID '(' ARGDEF ')' '→' TYPE ';'
+FUNDEF := 'fn' ID '(' ARGDEF ')' '→' TYPE '{' CMD '}'
+ARGDEF := Ɛ | ID ':' TYPE (',' ID ':' TYPE)*
+CMD := Ɛ | CMD ';' CMD | LVAL ( ':' TYPE )? '=' RVAL | CONDITIONAL | 'for' LVAL 'in' RVAL '{' CMD '}' | 'while' RVAL '{' CMD '}'
+RVAL := '(' RVAL ')' | RVAL OP RVAL
+OP := '+' | '-' | '*' | '/' | '\/' | '/\'
+CONDITIONAL := 'if' RVAL '{' CMD '}' ( 'else' ('{' CMD '}' | CONDITIONAL) )?

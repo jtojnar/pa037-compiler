@@ -10,6 +10,7 @@ You can compile it with [Nix](https://nixos.org/nix/) by running
 
 ## References
 * https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl01.html
+* https://llvm.org/docs/LangRef.html#functions
 * https://hackage.haskell.org/package/llvm-hs
 * https://hackage.haskell.org/package/megaparsec
 * https://mmhaskell.com/blog/2018/2/26/attoparsec-the-clarity-of-do-syntax

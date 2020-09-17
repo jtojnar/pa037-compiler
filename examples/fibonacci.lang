@@ -1,0 +1,23 @@
+extern io_err(s: ptr char) -> int32;
+extern io_print(s1: ptr char, s2: ptr char, s3: ptr char) -> int32;
+extern int32_to_string(s: int32) -> ptr char;
+extern string_to_int32(s: ptr char) -> int32;
+
+fn fibonacci(n : int32) -> int32 {
+    if n <= 1 {
+        return 1;
+    }
+
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+fn main(argc: int32, argv: ptr char) -> int32 {
+    let argv : ptr char;
+    if (argc < 2) {
+        io_err("Not enough arguments");
+
+        return 1;
+    }
+    io_print("1", argv, int32_to_string(fibonacci(string_to_int32(argv))));
+    return 0;
+}

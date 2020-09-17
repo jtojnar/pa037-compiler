@@ -1,10 +1,10 @@
 { mkDerivation
 , base
-, haskell
 , hashmap
 , hpack
 , HUnit
 , llvm-hs
+, llvm-hs-pretty
 , megaparsec
 , optparse-applicative
 , stdenv
@@ -29,7 +29,8 @@ mkDerivation {
   executableHaskellDepends = [
     base
     hashmap
-    (haskell.lib.unmarkBroken llvm-hs)
+    llvm-hs
+    llvm-hs-pretty
     megaparsec
     optparse-applicative
     text

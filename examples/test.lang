@@ -1,0 +1,13 @@
+fn main() -> bool {
+    let foo : bool = true;
+    let whi : int32 = 5;
+    let bar : int32 = 1;
+    if foo && bar <= 4 {
+        bar = 8;
+    }
+    for feh in mah {
+        while bar < 89 && !bar != tru {
+            bar = 9;
+        }
+    }
+}
