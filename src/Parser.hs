@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Parser (program, expression, pos) where
+module Parser (Pos, program, expression, pos) where
 
 import Ast
 import Control.Applicative ((<|>), optional, some, many)

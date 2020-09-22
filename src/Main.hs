@@ -3,11 +3,12 @@
 
 module Main where
 
-import Control.Applicative ((<**>), optional)
+import Ast (Program)
+import Control.Applicative ((<|>), (<**>), optional)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Text.IO (getContents, readFile)
-import Parser (program, pos)
+import Parser (Pos, program, pos)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
@@ -16,14 +17,30 @@ import Semer
 
 default (Text)
 
+data CompilerMode = PrintAst | CheckAst
+
 data Flags = Flags {
+    mode :: CompilerMode,
     inputPath :: FilePath,
     outputPath :: Maybe FilePath
 }
 
+modeFlags :: Opt.Parser CompilerMode
+modeFlags =
+    Opt.flag' PrintAst (
+        Opt.long "print-ast"
+        <> Opt.help "Print parsed abstract syntax tree"
+    )
+    <|> Opt.flag' CheckAst (
+        Opt.long "check-ast"
+        <> Opt.help "Print parsed and type checked abstract syntax tree (default action)"
+    )
+    <|> pure CheckAst
+
 flagsParser :: Opt.Parser Flags
 flagsParser = Flags
-    <$> Opt.strArgument (
+    <$> modeFlags
+    <*> Opt.strArgument (
         Opt.metavar "SOURCE"
         <> Opt.help "Path to a file with the source code to be compiled"
     )
@@ -41,11 +58,16 @@ programInfo =
 
 main :: IO ()
 main = do
-    Flags { inputPath, outputPath } <- Opt.execParser programInfo
+    Flags { mode, inputPath, outputPath } <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
 
     case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> case typeCheck ast of
-            Left errs -> hPutStr stderr (show errs)
-            Right () -> print ast
+        Right ast -> handleAst ast mode
+
+handleAst :: Program Pos -> CompilerMode -> IO ()
+handleAst ast PrintAst = print ast
+handleAst ast _ =
+    case typeCheck ast of
+        Left errs -> hPutStr stderr (show errs)
+        Right () -> print ast
