@@ -65,6 +65,8 @@ expressionAnn (Greater ann _ _) = ann
 expressionAnn (GreaterThanEqual ann _ _) = ann
 expressionAnn (Number ann _) = ann
 expressionAnn (Boolean ann _) = ann
+expressionAnn (Character ann _) = ann
+expressionAnn (String ann _) = ann
 expressionAnn (Variable ann _) = ann
 expressionAnn (Call ann _ _) = ann
 
