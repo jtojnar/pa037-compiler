@@ -2,7 +2,7 @@ module Ast where
 
 import Data.Text (Text)
 
-data Type = TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type
+data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type
     deriving (Eq, Show)
 
 isNumericType :: Type -> Bool
@@ -26,6 +26,14 @@ isOrdType TInt32 = True
 isOrdType TChar = True
 isOrdType TBool = True
 isOrdType _ = False
+
+{-| Standard type equality testing function.
+Equality is defined inductively, with the addition that ⊥ can be unified with any type.
+-}
+tEquals :: Type -> Type -> Bool
+tEquals TBot _ = True
+tEquals _ TBot = True
+tEquals l r = l == r
 
 data Expression ann
     = Addition ann (Expression ann) (Expression ann)

@@ -78,7 +78,7 @@ typeCheckCommand context (Conditional ann branches melse) =
             let
                 (cErrors, condition') = typeOf context condition
                 ctype = semType condition'
-                mismatchErrors = if ctype /= TBool then [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")] else []
+                mismatchErrors = if tEquals ctype TBool then [] else [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")]
                 (bodyErrors, commands', context') = typeCheckCommands context body
                 errors = cErrors ++ mismatchErrors ++ bodyErrors
             in (errors, (condition', commands'), context')) branches
@@ -109,7 +109,7 @@ typeCheckCommand context (While ann condition body) =
     let
         (cErrors, condition') = typeOf context condition
         ctype = semType condition'
-        mismatchErrors = if ctype /= TBool then [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")] else []
+        mismatchErrors = if tEquals ctype TBool then [] else [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")]
         (bodyErrors, body', context') = typeCheckCommands context body
         errors = cErrors ++ mismatchErrors ++ bodyErrors
     in
@@ -119,7 +119,7 @@ typeCheckCommand context (Return ann expr) =
         expectedType = contextResult context
         (exprErrors, expr') = typeOf context expr
         texpr = semType expr'
-        mismatchErrors = if texpr /= expectedType then [SemanticError [ann] ("Function was declared as returning type ‘" <> ppType expectedType <> "’ but the return statement returns ‘" <> ppType texpr <> "’.")] else []
+        mismatchErrors = if tEquals texpr expectedType then [] else [SemanticError [ann] ("Function was declared as returning type ‘" <> ppType expectedType <> "’ but the return statement returns ‘" <> ppType texpr <> "’.")]
         context' = context { contextReturned = True }
         errors = exprErrors ++ mismatchErrors
     in
@@ -133,7 +133,7 @@ typeCheckCommand context (Declaration ann name ty mexpr) =
                 let
                     (exprErrors, expr') = typeOf context expr
                     texpr = semType expr'
-                    mismatchErrors = if texpr /= ty then [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")] else []
+                    mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
                     errors = exprErrors ++ mismatchErrors
                 in
                     (errors, Declaration (ann, TNil) name ty (Just expr'), context')
@@ -144,10 +144,10 @@ typeCheckCommand context (Assignment ann name expr) =
             case contextLookupBinding name context of
                 Just ty -> ([], ty)
                 Nothing ->
-                    ([SemanticError [ann] ("Variable ‘" <> name <> "’ not declared.")], TNil) -- TODO: use bottom
+                    ([SemanticError [ann] ("Variable ‘" <> name <> "’ not declared.")], TBot)
         (terrors, expr') = typeOf context expr
         texpr = semType expr'
-        mismatchErrors = if texpr /= ty then [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")] else []
+        mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
         errors = scopeErrors ++ terrors ++ mismatchErrors
     in
         (errors, Assignment (ann, TNil) name expr', context)
@@ -168,7 +168,7 @@ checkNumericBinOp mkNode context l r =
         (mismatchErrors, expectedType) = checkExpression
             [ (not (isNumericType tl), ("Left value needs to be a numeric type.", [expressionAnn l]))
             , (not (isNumericType tr), ("Right value needs to be a numeric type.", [expressionAnn r]))
-            , (tl /= tr, ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
+            , (not (tEquals tl tr), ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
             ]
             tl
         errors = lerrors ++ rerrors ++ mismatchErrors
@@ -185,7 +185,7 @@ checkOrdBinOp mkNode context l r =
         (mismatchErrors, expectedType) = checkExpression
             [ (not (isOrdType tl), ("Left value needs to be an ordered type.", [expressionAnn l]))
             , (not (isOrdType tr), ("Right value needs to be an ordered type.", [expressionAnn r]))
-            , (tl /= tr, ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
+            , (not (tEquals tl tr), ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
             ]
             TBool
         errors = lerrors ++ rerrors ++ mismatchErrors
@@ -202,7 +202,7 @@ checkEqBinOp mkNode context l r =
         (mismatchErrors, expectedType) = checkExpression
             [ (not (isEqType tl), ("Left value needs to be a type with equivalence defined.", [expressionAnn l]))
             , (not (isEqType tr), ("Right value needs to be a type with equivalence defined.", [expressionAnn r]))
-            , (tl /= tr, ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
+            , (not (tEquals tl tr), ("Types of values need to match.", [expressionAnn l, expressionAnn r]))
             ]
             TBool
         errors = lerrors ++ rerrors ++ mismatchErrors
@@ -232,7 +232,7 @@ checkExpression errors ty =
     in
         case applicableErrors of
             [] -> ([], ty)
-            _ -> (map (uncurry (flip SemanticError)) applicableErrors, TNil) -- TODO: use bottom type
+            _ -> (map (uncurry (flip SemanticError)) applicableErrors, TBot)
 
 typeOf :: Context -> Expression ann -> ([SemanticError ann], Expression (ann, Type))
 typeOf context (Addition ann l r) = checkNumericBinOp (\ty -> Addition (ann, ty)) context l r
@@ -256,14 +256,14 @@ typeOf context (Variable ann name) =
         Just ty -> ([], Variable (ann, ty) name)
         Nothing ->
             ([SemanticError [ann] ("Variable " <> name <> " not defined.")],
-            Variable (ann, TNil) name) -- TODO: use bottom
+            Variable (ann, TBot) name)
 typeOf context (Call ann name args) =
     let
         (scopeErrors, fn) =
             case contextLookupBinding name context of
                 Just ty -> ([], ty)
                 Nothing ->
-                    ([SemanticError [ann] ("Function ‘" <> name <> "’ not defined.")], TNil) -- TODO: use bottom
+                    ([SemanticError [ann] ("Function ‘" <> name <> "’ not defined.")], TBot)
         (argumentErrors, resultType, args') =
             case fn of
                 Function fnargs result ->
@@ -275,7 +275,7 @@ typeOf context (Call ann name args) =
                                     let
                                         (argErrors, arg') = typeOf context arg
                                         actual = semType arg'
-                                        mismatchErrors = if expected == actual then [] else [SemanticError [ann] ("Argument " <> tshow n <> " of function ‘" <> name <> "’ requires a value of type ‘" <> ppType expected <> "’ but ‘" <> ppType actual <> "’ was received.")]
+                                        mismatchErrors = if tEquals expected actual then [] else [SemanticError [ann] ("Argument " <> tshow n <> " of function ‘" <> name <> "’ requires a value of type ‘" <> ppType expected <> "’ but ‘" <> ppType actual <> "’ was received.")]
                                         errors = argErrors ++ mismatchErrors
                                     in
                                         (errors, arg')
@@ -288,7 +288,7 @@ typeOf context (Call ann name args) =
                         errors = argumentCountErrors ++ argumentValueErrors
                     in
                         (errors, result, fnargs')
-                _ -> ([SemanticError [ann] ("Name ‘" <> name <> "’ is not a function.")], TNil, []) -- TODO: use bottom, maybe always check argErrors
+                _ -> ([SemanticError [ann] ("Name ‘" <> name <> "’ is not a function.")], TBot, []) -- TODO: maybe always check argErrors
         errors = scopeErrors ++ argumentErrors
     in
         (errors, Call (ann, resultType) name args')

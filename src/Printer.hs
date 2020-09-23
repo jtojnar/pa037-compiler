@@ -10,6 +10,7 @@ import qualified Data.Text as T
 default (Text)
 
 ppType :: Type -> Text
+ppType TBot = "⊥"
 ppType TInt32 = "int32"
 ppType TChar = "char"
 ppType TBool = "bool"
