@@ -76,6 +76,7 @@ typeVal :: Parser Type
 typeVal
     = ((pure TInt32 <* text "int32"
     <|> pure TChar <* text "char"
+    <|> pure TNil <* text "()"
     <|> pure TPtr <* text "ptr" <*> typeVal
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 

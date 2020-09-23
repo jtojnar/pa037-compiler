@@ -2,7 +2,7 @@ module Ast where
 
 import Data.Text (Text)
 
-data Type = TInt32 | TChar | TBool | TPtr Type | Function [Type] Type
+data Type = TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type
     deriving (Eq, Show)
 
 isNumericType :: Type -> Bool
@@ -17,6 +17,7 @@ isEqType :: Type -> Bool
 isEqType TInt32 = True
 isEqType TChar = True
 isEqType TBool = True
+isEqType TNil = True
 isEqType (TPtr _) = True
 isEqType _ = False
 
