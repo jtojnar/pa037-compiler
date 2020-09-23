@@ -69,5 +69,5 @@ handleAst :: Program Pos -> CompilerMode -> IO ()
 handleAst ast PrintAst = print ast
 handleAst ast _ =
     case typeCheck ast of
-        Left errs -> hPutStr stderr (show errs)
-        Right () -> print ast
+        ([], ast') -> print ast'
+        (errs, ast) -> hPutStr stderr (show errs)
