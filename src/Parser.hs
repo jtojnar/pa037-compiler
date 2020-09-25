@@ -10,8 +10,8 @@ import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
 import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getSourcePos, manyTill, satisfy, sepBy, sourceName, sourceLine, sourceColumn, unPos)
-import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space, string)
-import Text.Megaparsec.Char.Lexer (charLiteral)
+import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space1, string)
+import Text.Megaparsec.Char.Lexer (charLiteral, space, skipLineComment, skipBlockCommentNested)
 
 default (Text)
 
@@ -40,7 +40,11 @@ endOfInput :: Parser ()
 endOfInput = eof
 
 skipSpace :: Parser ()
-skipSpace = space
+skipSpace =
+    space
+        space1
+        (skipLineComment "//")
+        (skipBlockCommentNested "/*" "*/")
 
 chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
 chainl1 p op = p >>= rest
