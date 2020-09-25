@@ -3,11 +3,14 @@
 
 module Main where
 
-import Ast (Program)
+import Ast (Program, Type)
+import Codegen.LLVM (codegen)
 import Control.Applicative ((<|>), (<**>), optional)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Text.IO (getContents, readFile)
+import qualified Data.Text.Lazy.IO as T
+import LLVM.Pretty
 import Parser (Pos, program, pos)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
@@ -17,7 +20,7 @@ import Semer
 
 default (Text)
 
-data CompilerMode = PrintAst | CheckAst
+data CompilerMode = PrintAst | CheckAst | EmitIr
 
 data Flags = Flags {
     mode :: CompilerMode,
@@ -33,9 +36,13 @@ modeFlags =
     )
     <|> Opt.flag' CheckAst (
         Opt.long "check-ast"
-        <> Opt.help "Print parsed and type checked abstract syntax tree (default action)"
+        <> Opt.help "Print parsed and type checked abstract syntax tree"
     )
-    <|> pure CheckAst
+    <|> Opt.flag' EmitIr (
+        Opt.long "emit-ir"
+        <> Opt.help "Print LLVM intermediate representation (default action)"
+    )
+    <|> pure EmitIr
 
 flagsParser :: Opt.Parser Flags
 flagsParser = Flags
@@ -58,16 +65,20 @@ programInfo =
 
 main :: IO ()
 main = do
-    Flags { mode, inputPath, outputPath } <- Opt.execParser programInfo
+    flags@(Flags { mode, inputPath, outputPath }) <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
 
     case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> handleAst ast mode
+        Right ast -> handleAst ast flags
 
-handleAst :: Program Pos -> CompilerMode -> IO ()
-handleAst ast PrintAst = print ast
-handleAst ast _ =
+handleAst :: Program Pos -> Flags -> IO ()
+handleAst ast Flags { mode = PrintAst } = print ast
+handleAst ast flags =
     case typeCheck ast of
-        ([], ast') -> print ast'
+        ([], ast') -> handleTypeCheckedAst ast' flags
         (errs, ast) -> hPutStr stderr (show errs)
+
+handleTypeCheckedAst :: Program (Pos, Type) -> Flags -> IO ()
+handleTypeCheckedAst ast Flags { mode = CheckAst } = print ast
+handleTypeCheckedAst ast Flags { inputPath } = T.putStrLn $ ppllvm (codegen inputPath ast)

@@ -4,12 +4,23 @@ This is a simple compiler for PA037 course.
 
 You can compile it with [Nix](https://nixos.org/nix/) by running
 
-    nix build
+```
+nix build
+```
 
- then build one of the example programs with `result/bin/compiler examples/fibonacci.lang`
+then build one of the example programs with
+
+```
+result/bin/compiler examples/fibonacci.lang -o fibonacci.ll
+llc fibonacci.ll
+clang factorial.s -o factorial
+./factorial 555
+```
 
 ## References
 * https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl01.html
+* https://github.com/sdiehl/kaleidoscope/tree/master/src/chapter7
+* https://llvm.org/docs/LangRef.html#functions
 * https://hackage.haskell.org/package/llvm-hs
 * https://hackage.haskell.org/package/megaparsec
 * https://mmhaskell.com/blog/2018/2/26/attoparsec-the-clarity-of-do-syntax

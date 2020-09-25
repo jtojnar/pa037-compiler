@@ -12,6 +12,7 @@ executables:
     dependencies:
       - base
       - compiler
+      - llvm-hs-pretty >= 0.9 && < 0.10
       - megaparsec
       - optparse-applicative
       - text
@@ -19,8 +20,12 @@ executables:
 library:
   dependencies:
     - base >=4.10 && <4.14
+    - containers
     - hashmap >= 1.3 && < 1.4
+    - llvm-hs >= 9.0 && < 9.1
+    - llvm-hs-pure >= 9.0 && < 9.1
     - megaparsec >= 8.0 && < 8.1
+    - mtl >= 2.2 && < 2.3
     - text
   source-dirs: src
 
