@@ -72,11 +72,16 @@ bool = ((string "true" *> pure True <|> string "false" *> pure False) <?> "boole
 
 -- NON-TERMINALS
 
+parenthisedTypes :: [Type] -> Type
+parenthisedTypes [] = TNil
+parenthisedTypes [ty] = ty
+parenthisedTypes tup = error "Tuples not yet supported."
+
 typeVal :: Parser Type
 typeVal
     = ((pure TInt32 <* text "i32"
     <|> pure TChar <* text "char"
-    <|> pure TNil <* text "()"
+    <|> pure parenthisedTypes <*> (text "(" *> (typeVal `sepBy` text ",") <* ")")
     <|> pure TPtr <* text "ptr" <*> typeVal
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
