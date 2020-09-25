@@ -22,6 +22,9 @@
         # Incorrectly marked as broken
         llvm-hs = pkgs.haskell.lib.unmarkBroken prev.llvm-hs;
         llvm-hs-pretty = pkgs.haskell.lib.unmarkBroken prev.llvm-hs-pretty;
+
+        # Feature that requires unavailable dependency
+        hsdev = pkgs.haskell.lib.doJailbreak prev.hsdev;
       };
     };
 
@@ -30,6 +33,7 @@
       nativeBuildInputs = attrs.nativeBuildInputs ++ [
         pkgs.cabal-install
         pkgs.llvm_9
+        haskellPackages.hsdev
       ];
     });
 
