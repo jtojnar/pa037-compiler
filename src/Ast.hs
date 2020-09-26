@@ -80,6 +80,27 @@ expressionAnn (String ann _) = ann
 expressionAnn (Variable ann _) = ann
 expressionAnn (Call ann _ _) = ann
 
+stripAnn :: Expression ann -> Expression ()
+stripAnn (Addition ann l r) = Addition () (stripAnn l) (stripAnn r)
+stripAnn (Subtraction ann l r) = Subtraction () (stripAnn l) (stripAnn r)
+stripAnn (Multiplication ann l r) = Multiplication () (stripAnn l) (stripAnn r)
+stripAnn (Division ann l r) = Division () (stripAnn l) (stripAnn r)
+stripAnn (Conjunction ann l r) = Conjunction () (stripAnn l) (stripAnn r)
+stripAnn (Disjunction ann l r) = Disjunction () (stripAnn l) (stripAnn r)
+stripAnn (Negation ann e) = Negation () (stripAnn e)
+stripAnn (Equality ann l r) = Equality () (stripAnn l) (stripAnn r)
+stripAnn (Inequality ann l r) = Inequality () (stripAnn l) (stripAnn r)
+stripAnn (LessThan ann l r) = LessThan () (stripAnn l) (stripAnn r)
+stripAnn (LessThanEqual ann l r) = LessThanEqual () (stripAnn l) (stripAnn r)
+stripAnn (Greater ann l r) = Greater () (stripAnn l) (stripAnn r)
+stripAnn (GreaterThanEqual ann l r) = GreaterThanEqual () (stripAnn l) (stripAnn r)
+stripAnn (Number ann v) = Number () v
+stripAnn (Boolean ann v) = Boolean () v
+stripAnn (Character ann v) = Character () v
+stripAnn (String ann v) = String () v
+stripAnn (Variable ann n) = Variable () n
+stripAnn (Call ann e args) = Call () (stripAnn e) (map stripAnn args)
+
 type Identifier = Text
 
 type Program ann = [(Identifier, FunctionDefinition ann)]
