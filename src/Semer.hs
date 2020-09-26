@@ -151,12 +151,12 @@ typeCheckCommand context (Assignment ann name expr) =
         errors = scopeErrors ++ terrors ++ mismatchErrors
     in
         (errors, Assignment (ann, TNil) name expr', context)
-typeCheckCommand context call@(CCall ann name args) =
+typeCheckCommand context call@(CCall ann callee args) =
     let
-        (errors, expr') = typeOf context (Call ann name args)
-        Call _ann _name args' = expr'
+        (errors, expr') = typeOf context (Call ann callee args)
+        Call _ann callee' args' = expr'
     in
-        (errors, CCall (ann, TNil) name args', context)
+        (errors, CCall (ann, TNil) callee' args', context)
 
 checkNumericBinOp :: (Type -> Expression (ann, Type) -> Expression (ann, Type) -> Expression (ann, Type)) -> Context -> Expression ann -> Expression ann -> ([SemanticError ann], Expression (ann, Type))
 checkNumericBinOp mkNode context l r =
@@ -257,15 +257,11 @@ typeOf context (Variable ann name) =
         Nothing ->
             ([SemanticError [ann] ("Variable " <> name <> " not defined.")],
             Variable (ann, TBot) name)
-typeOf context (Call ann name args) =
+typeOf context (Call ann callee args) =
     let
-        (scopeErrors, fn) =
-            case contextLookupBinding name context of
-                Just ty -> ([], ty)
-                Nothing ->
-                    ([SemanticError [ann] ("Function ‘" <> name <> "’ not defined.")], TBot)
+        (parentErrrors, callee') = typeOf context callee
         (argumentErrors, resultType, args') =
-            case fn of
+            case semType callee' of
                 Function fnargs result variadic ->
                     let
                         argCountOkay = if variadic then (>=) else (==)
@@ -277,7 +273,7 @@ typeOf context (Call ann name args) =
                                     let
                                         (argErrors, arg') = typeOf context arg
                                         actual = semType arg'
-                                        mismatchErrors = if tEquals expected actual then [] else [SemanticError [ann] ("Argument " <> tshow n <> " of function ‘" <> name <> "’ requires a value of type ‘" <> ppType expected <> "’ but ‘" <> ppType actual <> "’ was received.")]
+                                        mismatchErrors = if tEquals expected actual then [] else [SemanticError [ann] ("Argument " <> tshow n <> " of function ‘" <> ppExpr callee <> "’ requires a value of type ‘" <> ppType expected <> "’ but ‘" <> ppType actual <> "’ was received.")]
                                         errors = argErrors ++ mismatchErrors
                                     in
                                         (errors, arg')
@@ -290,10 +286,17 @@ typeOf context (Call ann name args) =
                         errors = argumentCountErrors ++ argumentValueErrors
                     in
                         (errors, result, fnargs')
-                _ -> ([SemanticError [ann] ("Name ‘" <> name <> "’ is not a function.")], TBot, []) -- TODO: maybe always check argErrors
-        errors = scopeErrors ++ argumentErrors
+                _ ->
+                    let
+                        exprOrName =
+                            case callee of
+                                Variable _ _ -> "Name"
+                                _ -> "Expression"
+                    in
+                        ([SemanticError [ann] (exprOrName <> " ‘" <> ppExpr callee <> "’ is not a function.")], TBot, []) -- TODO: maybe always check argErrors
+        errors = parentErrrors ++ argumentErrors
     in
-        (errors, Call (ann, resultType) name args')
+        (errors, Call (ann, resultType) callee' args')
 
 {-| Get type from semantically annotated expression node.
 -}

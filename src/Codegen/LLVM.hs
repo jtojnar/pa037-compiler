@@ -63,12 +63,10 @@ assign name register = do
     modify $ \s -> s { symbolTable = [(name, register)] ++ table }
 
 -- lifted from sdiehl/kaleidoscope
-getvar :: Identifier -> Codegen Operand
+getvar :: Identifier -> Codegen (Maybe Operand)
 getvar var = do
     syms <- gets symbolTable
-    case lookup (T.unpack var) syms of
-        Just x -> return x
-        Nothing -> error $ "Local variable not in scope: " ++ show var
+    return (lookup (T.unpack var) syms)
 
 -- lifted from sdiehl/kaleidoscope
 uniqueName :: Identifier -> Names -> (Identifier, Names)
@@ -96,21 +94,16 @@ freshBlock name = do
     emitBlockStart nm
     return nm
 
--- lifted from sdiehl/kaleidoscope
-externf :: AST.Type -> Identifier -> Operand
-externf ty name = ConstantOperand $ C.GlobalReference ty (identifierToName name)
-
+{-| Combine arguments into tuples with empty parameter lists. -}
 makeCallArgs :: [Operand] -> [(Operand, [ParameterAttribute])]
 makeCallArgs args = zip args (repeat [])
 
-call_ :: Identifier -> [Operand] -> Codegen Operand
-call_ name args = do
-    gs <- gets globals
-    case lookup name gs of
-        Just fn@(Ast.Function targs result variadic) ->
-            call (externf (ptr (codegenType fn)) name) (makeCallArgs args)
-        Just _ -> error $ "Global is not a function: " ++ show name
-        Nothing -> error $ "Undefined function: " ++ show name
+{-| Call a function represented by an expression. -}
+call_ :: Expression (ann, Ast.Type) -> [Expression (ann, Ast.Type)] -> Codegen Operand
+call_ callee args = do
+    args' <- mapM exprCodegen args
+    callee' <- exprCodegen callee
+    call callee' (makeCallArgs args')
 
 {-| Generate a Value representing constant True. -}
 true :: Operand
@@ -214,11 +207,19 @@ exprCodegen (String ann text) = do
         }
         pure $ ConstantOperand $ C.GlobalReference (ptr ty) nm
 exprCodegen (Variable ann name) = do
-    var <- getvar name
-    load var 0 -- default alignment
-exprCodegen (Ast.Call ann name args) = do
-    args' <- mapM exprCodegen args
-    call_ name args'
+    mLocalPointer <- getvar name -- Obtain a pointer to memory location of the locally allocated variable.
+    case mLocalPointer of
+        Just localPointer -> do
+            let alignment = 0 -- default alignment
+            load localPointer alignment -- Return the register with the value of the variable.
+        Nothing -> do
+            gs <- gets globals
+            case lookup name gs of
+                Nothing -> error $ "Variable not in scope: " ++ show name
+                Just ty -> return (ConstantOperand $ C.GlobalReference (codegenType ty) (identifierToName name))
+
+exprCodegen (Ast.Call ann callee args) = do
+    call_ callee args
 
 -- FIXME: handle commands dependently
 {-| Generate code for sequence of commands. -}
@@ -292,10 +293,11 @@ commandCodegen (Declaration ann name ty Nothing) = do
 commandCodegen (Assignment ann name expr) = do
     val <- exprCodegen expr
     var <- getvar name
-    store var 0 val -- default alignment
-commandCodegen (CCall ann name args) = do
-    args' <- mapM exprCodegen args
-    call_ name args'
+    case var of
+        Nothing -> error $ "Variable not in scope: " ++ show name
+        Just var' -> store var' 0 val -- default alignment
+commandCodegen (CCall ann callee args) = do
+    call_ callee args
     return ()
 
 codegenType :: Ast.Type -> AST.Type

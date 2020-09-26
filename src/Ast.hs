@@ -56,7 +56,7 @@ data Expression ann
     | Character ann Char
     | String ann Text
     | Variable ann Identifier
-    | Call ann Identifier [(Expression ann)]
+    | Call ann (Expression ann) [(Expression ann)]
     deriving (Eq, Show)
 
 expressionAnn :: Expression ann -> ann
@@ -105,5 +105,5 @@ data Command ann
     | Return ann (Expression ann)
     | Declaration ann Identifier Type (Maybe (Expression ann))
     | Assignment ann Identifier (Expression ann)
-    | CCall ann Identifier [(Expression ann)]
+    | CCall ann (Expression ann) [(Expression ann)]
     deriving (Eq, Show)

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Parser (Pos, program, expression, pos) where
+module Parser (Pos, command, program, expression, pos) where
 
 import Ast
 import Control.Applicative ((<|>), optional, some, many)
@@ -120,7 +120,28 @@ command annp
     <|> (While <$> annp <*> (text "while" *> expression annp) <*> block annp <?> "while loop")
     <|> (Return <$> annp <*> (text "return" *> expression annp) <* text ";" <?> "return statement")
     <|> (Declaration <$> annp <*> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression annp)) <* text ";" <?> "declaration")
-    <|> ((\ann name p -> p ann name) <$> annp <*> identifier <*> (((text "=" *> fmap (\expr -> \ann name -> Assignment ann name expr) (expression annp)) <?> "assignment") <|> ((text "(" *> fmap (\args -> \ann name -> CCall ann name args) (expression annp `sepBy` text ",") <* text ")") <?> "function call")) <* text ";")
+    <|> (callOrAssign <$> annp <*> identifier <*> (assignment annp <|> ccall annp) <* text ";")
+
+{-| Command starting with an identifier can be either assignment or a function call.
+We have to decide based no whether there is an equal sign.-}
+callOrAssign :: ann -> Identifier -> (ann -> Identifier -> Command ann) -> Command ann
+callOrAssign ann name p = p ann name
+
+{-| Parse a portion of assignment command after the identifier. -}
+assignment :: Parser ann -> Parser (ann -> Identifier -> Command ann)
+assignment annp = (text "=" *> fmap (\expr -> \ann name -> Assignment ann name expr) (expression annp)) <?> "assignment"
+
+{-| Parse a portion of call command after the identifier. -}
+ccall :: Parser ann -> Parser (ann -> Identifier -> Command ann)
+ccall annp = do
+    actions <- some (callArgs annp) <?> "function call"
+    return (\ann name ->
+        let
+            -- The callArgs parser returns (Expr -> Expr) so we need to build the call chain.
+            Call ann' callee args = callOrUse ann name actions
+        in
+            -- We also need to repack the outermost call from an expression to a command.
+            CCall ann' callee args)
 
 {-| Expressions formed by binary operators with priority 2
 -}
@@ -175,10 +196,13 @@ expression7 annp
             = text "*" *> (Multiplication <$> annp)
             <|> text "/" *> (Division <$> annp)
 
-{-| Identifier can refer to a variable when by itself, or a function name when followed by a list of arguments -}
-callOrUse :: ann -> Identifier -> Maybe [Expression ann] -> Expression ann
-callOrUse ann name (Just args) = Call ann name args
-callOrUse ann name Nothing = Variable ann name
+{-| Identifier can refer to a variable when by itself,
+or a function name when followed by a list of arguments in parentheses.
+It is also possible to immediately call the value returned from a function
+by adding another list of arguments after the call. -}
+callOrUse :: ann -> Identifier -> [Expression ann -> Expression ann] -> Expression ann
+callOrUse ann name actions = foldl (\expr action -> action expr) (Variable ann name) actions
+
 
 {-| Atomic expressions and unary operator -}
 atom :: Parser ann -> Parser (Expression ann)
@@ -189,4 +213,8 @@ atom annp
     <|> Boolean <$> annp <*> bool
     <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'')
     <|> String <$> annp <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"')))
-    <|> callOrUse <$> annp <*> identifier <*> optional (text "(" *> (expression annp `sepBy` text ",") <* text ")")
+    <|> callOrUse <$> annp <*> identifier <*> many (callArgs annp)
+
+
+callArgs :: Parser ann -> Parser (Expression ann -> Expression ann)
+callArgs annp = flip . Call <$> annp <*> (text "(" *> (expression annp `sepBy` text ",") <* text ")")
