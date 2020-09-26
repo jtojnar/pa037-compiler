@@ -29,6 +29,7 @@ ppExpr (Character ann val) = "'" <> T.pack [val] <> "'"
 ppExpr (String ann val) = "\"" <> val <> "\""
 ppExpr (Variable ann name) = name
 ppExpr (Call ann callee args) = ppExpr callee <> "(" <> (T.intercalate ", " (map ppExpr args)) <> ")"
+ppExpr (ArrayAccess ann array index) = ppExpr array <> "[" <> ppExpr index <> "]"
 
 ppType :: Type -> Text
 ppType TBot = "⊥"

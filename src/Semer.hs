@@ -297,6 +297,30 @@ typeOf context (Call ann callee args) =
         errors = parentErrrors ++ argumentErrors
     in
         (errors, Call (ann, resultType) callee' args')
+typeOf context (ArrayAccess ann array index) =
+    let
+        (arrayErrors, array') = typeOf context array
+        (indexErrrors, index') = typeOf context index
+
+        indexTypeErrors = case semType index' of
+            TInt32 -> []
+            ty ->
+                [SemanticError [ann] ("‘" <> ppExpr index <> "’ is not an integer so it cannot be an index.")]
+
+        (accessErrors, resultType) = case semType array' of
+            TPtr ty -> ([], ty)
+            ty ->
+                let
+                    exprOrName =
+                        case array of
+                            Variable _ _ -> "Name"
+                            _ -> "Expression"
+                in
+                    ([SemanticError [ann] (exprOrName <> " ‘" <> ppExpr array <> "’ is not a indexable.")], TBot)
+
+        errors = arrayErrors ++ indexErrrors ++ indexTypeErrors ++ accessErrors
+    in
+        (errors, ArrayAccess (ann, resultType) array' index')
 
 {-| Get type from semantically annotated expression node.
 -}

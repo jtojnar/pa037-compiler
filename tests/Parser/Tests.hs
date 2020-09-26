@@ -24,9 +24,33 @@ tests = testGroup "Parser tests" [
 
 expressionTests :: TestTree
 expressionTests = testGroup "Expression tests" [
+    testVariable,
+    testCallOrAccessExpression,
     testLeftAssociativity,
     testPriority
   ]
+
+testVariable :: TestTree
+testVariable = testCase "Variable expression" $
+    parseMaybe (expression nilAnnp) "variable" @?= (Just $ Variable () "variable")
+
+testCallOrAccessExpression :: TestTree
+testCallOrAccessExpression = testCase "Cal or array access expression" $
+    parseMaybe (expression nilAnnp) "foo[z](bar)[x][y]()(qux, 5)" @?= (Just $
+        (Call () (
+            (Call () (
+                ArrayAccess () (
+                    ArrayAccess () (
+                        Call () (
+                            ArrayAccess () (
+                                Variable () "foo"
+                            ) (Variable () "z")
+                        ) [Variable () "bar"]
+                    ) (Variable () "x")
+                ) (Variable () "y")
+            ) [])
+        ) [Variable () "qux", Number () 5])
+    )
 
 testLeftAssociativity :: TestTree
 testLeftAssociativity = testCase "Left associativity of subtraction" $

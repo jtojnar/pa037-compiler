@@ -220,6 +220,13 @@ exprCodegen (Variable ann name) = do
 
 exprCodegen (Ast.Call ann callee args) = do
     call_ callee args
+exprCodegen (Ast.ArrayAccess ann array index) = do
+    array' <- exprCodegen array
+    index' <- exprCodegen index
+    indexedValue <- gep array' [index']
+    let alignment = 0 -- default alignment
+    load indexedValue alignment
+
 
 -- FIXME: handle commands dependently
 {-| Generate code for sequence of commands. -}

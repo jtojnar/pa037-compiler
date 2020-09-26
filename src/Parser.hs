@@ -197,9 +197,10 @@ expression7 annp
             <|> text "/" *> (Division <$> annp)
 
 {-| Identifier can refer to a variable when by itself,
-or a function name when followed by a list of arguments in parentheses.
-It is also possible to immediately call the value returned from a function
-by adding another list of arguments after the call. -}
+a function name when followed by a list of arguments in parentheses,
+or an array when followed by square brackets.
+It is also possible to access multi-dimensional arrays,
+or even call item of an array that was returned by a function. -}
 callOrUse :: ann -> Identifier -> [Expression ann -> Expression ann] -> Expression ann
 callOrUse ann name actions = foldl (\expr action -> action expr) (Variable ann name) actions
 
@@ -213,8 +214,9 @@ atom annp
     <|> Boolean <$> annp <*> bool
     <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'')
     <|> String <$> annp <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"')))
-    <|> callOrUse <$> annp <*> identifier <*> many (callArgs annp)
+    <|> callOrUse <$> annp <*> identifier <*> many (callArgs annp <|> arrayAccessor annp)
 
 
-callArgs :: Parser ann -> Parser (Expression ann -> Expression ann)
+callArgs, arrayAccessor :: Parser ann -> Parser (Expression ann -> Expression ann)
 callArgs annp = flip . Call <$> annp <*> (text "(" *> (expression annp `sepBy` text ",") <* text ")")
+arrayAccessor annp = flip . ArrayAccess <$> annp <*> (text "[" *> expression annp <* text "]")

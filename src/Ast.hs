@@ -57,6 +57,7 @@ data Expression ann
     | String ann Text
     | Variable ann Identifier
     | Call ann (Expression ann) [(Expression ann)]
+    | ArrayAccess ann (Expression ann) (Expression ann)
     deriving (Eq, Show)
 
 expressionAnn :: Expression ann -> ann
@@ -79,6 +80,7 @@ expressionAnn (Character ann _) = ann
 expressionAnn (String ann _) = ann
 expressionAnn (Variable ann _) = ann
 expressionAnn (Call ann _ _) = ann
+expressionAnn (ArrayAccess ann _ _) = ann
 
 stripAnn :: Expression ann -> Expression ()
 stripAnn (Addition ann l r) = Addition () (stripAnn l) (stripAnn r)
@@ -100,6 +102,7 @@ stripAnn (Character ann v) = Character () v
 stripAnn (String ann v) = String () v
 stripAnn (Variable ann n) = Variable () n
 stripAnn (Call ann e args) = Call () (stripAnn e) (map stripAnn args)
+stripAnn (ArrayAccess ann e i) = ArrayAccess () (stripAnn e) (stripAnn i)
 
 type Identifier = Text
 
