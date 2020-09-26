@@ -187,25 +187,9 @@ exprCodegen (Boolean ann False) = return $ BC.bit 0
 exprCodegen (Character ann char) = return $ BC.int8 (toInteger (ord char))
 exprCodegen (String ann text) = do
     -- Let’s create a new global constant and return an its address.
-    -- https://stackoverflow.com/questions/1061753/how-can-i-implement-a-string-data-type-in-llvm
-    name <- freshName_ ".str"
-
-    let members = ((map (C.Int 8 . toInteger . ord) . T.unpack) text)
-    let array = C.Array (typeOf (head members)) members
-    let ty = typeOf array
-    var <- internalGlobal (identifierToName name) ty array
-    gep var [ConstantOperand (C.Int 32 0), ConstantOperand (C.Int 64 0)]
-  where
-    -- Based on llvm-hs’s global.
-    internalGlobal nm ty initVal = do
-        emitDefn $ GlobalDefinition globalVariableDefaults {
-            name = nm,
-            LLVM.AST.Global.type' = ty,
-            linkage = Internal,
-            isConstant = True,
-            initializer = Just initVal
-        }
-        pure $ ConstantOperand $ C.GlobalReference (ptr ty) nm
+    name <- identifierToName <$> freshName_ ".str"
+    constant <- globalStringPtr (T.unpack text) name
+    return $ ConstantOperand constant
 exprCodegen (Variable ann name) = do
     mLocalPointer <- getvar name -- Obtain a pointer to memory location of the locally allocated variable.
     case mLocalPointer of
