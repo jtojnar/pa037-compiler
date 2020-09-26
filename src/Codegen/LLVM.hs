@@ -103,15 +103,12 @@ externf ty name = ConstantOperand $ C.GlobalReference ty (identifierToName name)
 makeCallArgs :: [Operand] -> [(Operand, [ParameterAttribute])]
 makeCallArgs args = zip args (repeat [])
 
--- lifted from https://github.com/robinvd/lang-experiments/blob/ba3f920cabee8268bb4a017ecb5fbd7b4f259183/src/Emit.hs
-toT t a = ptr $ FunctionType t a False
-
 call_ :: Identifier -> [Operand] -> Codegen Operand
 call_ name args = do
     gs <- gets globals
     case lookup name gs of
-        Just (Ast.Function targs result variadic) ->
-            call (externf (toT (codegenType result) (map codegenType targs)) name) (makeCallArgs args)
+        Just fn@(Ast.Function targs result variadic) ->
+            call (externf (ptr (codegenType fn)) name) (makeCallArgs args)
         Just _ -> error $ "Global is not a function: " ++ show name
         Nothing -> error $ "Undefined function: " ++ show name
 

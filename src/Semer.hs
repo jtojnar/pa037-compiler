@@ -282,7 +282,7 @@ typeOf context (Call ann name args) =
                                     in
                                         (errors, arg')
                                 )
-                                fnargs
+                                (fnargs ++ repeat TBot) -- Variadic arguments are checked against TBot since we have no idea what their expected type is.
                                 args
                                 [1..]
                         argumentValueErrors = concatMap fst argChecks
