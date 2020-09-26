@@ -46,8 +46,8 @@ typeCheck program =
         (concatMap fst checkedFunctions, map snd checkedFunctions)
 
 typeCheckFunction :: Map Identifier Type -> (Identifier, FunctionDefinition ann) -> ([SemanticError ann], (Identifier, FunctionDefinition (ann, Type)))
-typeCheckFunction functions (name, (args, result, Nothing)) = ([], (name, (args, result, Nothing)))
-typeCheckFunction functions (name, (args, result, Just body)) = (bodyErrors, (name, (args, result, Just newBody)))
+typeCheckFunction functions (name, FunctionDefinition args result variadic Nothing) = ([], (name, FunctionDefinition args result variadic Nothing))
+typeCheckFunction functions (name, FunctionDefinition args result variadic (Just body)) = (bodyErrors, (name, FunctionDefinition args result variadic (Just newBody)))
     where
         context = Context {
             contextBindings = functions `Map.union` Map.fromList args,
@@ -266,9 +266,11 @@ typeOf context (Call ann name args) =
                     ([SemanticError [ann] ("Function ‘" <> name <> "’ not defined.")], TBot)
         (argumentErrors, resultType, args') =
             case fn of
-                Function fnargs result ->
+                Function fnargs result variadic ->
                     let
-                        argumentCountErrors = if length fnargs /= length args then [SemanticError [ann] ("Function ‘" <> "’ expects " <> tshow (length fnargs) <> " arguments but " <> tshow (length args) <> " were given.")] else []
+                        argCountOkay = if variadic then (>=) else (==)
+                        atLeast = if variadic then "at least " else ""
+                        argumentCountErrors = if not (argCountOkay (length args) (length fnargs)) then [SemanticError [ann] ("Function ‘" <> "’ expects " <> atLeast <> tshow (length fnargs) <> " arguments but " <> tshow (length args) <> " were given.")] else []
                         argChecks =
                             zipWith3
                                 (\expected arg n ->

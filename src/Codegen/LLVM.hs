@@ -110,7 +110,7 @@ call_ :: Identifier -> [Operand] -> Codegen Operand
 call_ name args = do
     gs <- gets globals
     case lookup name gs of
-        Just (Ast.Function targs result) ->
+        Just (Ast.Function targs result variadic) ->
             call (externf (toT (codegenType result) (map codegenType targs)) name) (makeCallArgs args)
         Just _ -> error $ "Global is not a function: " ++ show name
         Nothing -> error $ "Undefined function: " ++ show name
@@ -307,11 +307,11 @@ codegenType TChar = i8 -- We will use UTF-8 for simplicity.
 codegenType TBool = i1
 codegenType TNil = void
 codegenType (TPtr nested) = ptr (codegenType nested)
-codegenType (Ast.Function args result) =
+codegenType (Ast.Function args result variadic) =
     FunctionType {
         resultType = codegenType result,
         argumentTypes = map codegenType args,
-        isVarArg = False
+        isVarArg = variadic
     }
 
 identifierToName :: Identifier -> Name
@@ -321,7 +321,7 @@ identifierToParameterName :: Identifier -> ParameterName
 identifierToParameterName = fromString . T.unpack
 
 codegenFunctionDefinition :: (Identifier, FunctionDefinition (ann, Ast.Type)) -> Modulegen Operand
-codegenFunctionDefinition (name, (args, resultType, mbody)) =
+codegenFunctionDefinition (name, FunctionDefinition args resultType variadic mbody) =
     let
         name' = identifierToName name
         args' = map (\(name, ty) -> (codegenType ty, identifierToParameterName name)) args
@@ -329,7 +329,7 @@ codegenFunctionDefinition (name, (args, resultType, mbody)) =
     in do
         case mbody of
             Nothing ->
-                extern name' (map fst args') resultType'
+                (if variadic then externVarArgs else extern) name' (map fst args') resultType'
             Just commands ->
                 function
                     name'

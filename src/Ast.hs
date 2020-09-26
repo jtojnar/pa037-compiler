@@ -1,8 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Ast where
 
 import Data.Text (Text)
 
-data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type
+data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type Bool
     deriving (Eq, Show)
 
 isNumericType :: Type -> Bool
@@ -84,10 +86,15 @@ type Program ann = [(Identifier, FunctionDefinition ann)]
 
 type BinaryOperator ann = Expression ann -> Expression ann -> Expression ann
 
-type FunctionDefinition ann = ([(Identifier, Type)], Type, Maybe (Commands ann))
+data FunctionDefinition ann = FunctionDefinition {
+    funDefArguments :: [(Identifier, Type)],
+    funDefResultType :: Type,
+    funDefVariadic :: Bool,
+    funDefBody :: Maybe (Commands ann)
+} deriving (Eq, Show)
 
 funType :: FunctionDefinition ann -> Type
-funType (args, result, _body) = Function (map snd args) result
+funType FunctionDefinition {..} = Function (map snd funDefArguments) funDefResultType funDefVariadic
 
 type Commands ann = [Command ann]
 

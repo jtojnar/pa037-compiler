@@ -96,10 +96,16 @@ arguments :: Parser [(Identifier, Type)]
 arguments = ((,) <$> identifier <* text ":" <*> typeVal) `sepBy` text ","
 
 funDef :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
-funDef annp = (,) <$> (text "fn" *> identifier) <*> (text "(" *> ((,,) <$> arguments <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> (Just <$> commands annp)) <* text "}"))
+funDef annp = handleFunDef <$> (text "fn" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands annp) <* text "}"
+  where
+    handleFunDef name arguments result body = (name, FunctionDefinition arguments result False (Just body))
 
+{-| Define external function.
+Unlike regular functions, these can be variadic. -}
 extern :: Parser (Identifier, FunctionDefinition ann)
-extern = (,) <$> (text "extern" *> identifier) <*> (text "(" *> ((,, Nothing) <$> arguments <*> (text ")" *> text "->" *> typeVal) <* text ";"))
+extern = handleExtern <$> ((text "variadic" *> pure True) <|> pure False) <*> (text "extern" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <* text ";"
+  where
+    handleExtern variadic name arguments result = (name, FunctionDefinition arguments result variadic Nothing)
 
 commands :: Parser ann -> Parser (Commands ann)
 commands annp = many (command annp)
