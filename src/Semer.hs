@@ -9,6 +9,7 @@ import Ast
 import Control.Applicative ((<|>), optional, some, many)
 import Control.Monad (when)
 import Data.HashMap (Map)
+import Data.Maybe (isJust)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Void
@@ -84,10 +85,9 @@ typeCheckCommand context (Conditional ann branches melse) =
                 (bodyErrors, commands', context') = typeCheckCommands context body
                 errors = cErrors ++ mismatchErrors ++ bodyErrors
             in (errors, (condition', commands'), context')) branches
-        branchesErrors = concatMap (\(errs, _commands, _ctx) -> errs) branchesChecks
-        branches' = map (\(_errs, branch, _ctx) -> branch) branchesChecks
+        (branchesErrors, branches', branchesContexts) = unzip3 branchesChecks
 
-        (elseErrors, melse', _elseContext') = case melse of
+        (elseErrors, melse', elseContext') = case melse of
             Just elseBody ->
                 let
                     (errors, elseBody', context') = typeCheckCommands context elseBody
@@ -95,9 +95,17 @@ typeCheckCommand context (Conditional ann branches melse) =
                     (errors, Just elseBody', context')
             Nothing -> ([], Nothing, context)
 
-        errors = branchesErrors ++ elseErrors
+        errors = concat branchesErrors ++ elseErrors
+
+        -- Context remains mostly unchanged.
+        -- But if all the branches returned (including the virtual else branch),
+        -- we propagate the return status.
+        -- Of course, we need to preserve the original return status if the block already returned previously.
+        newContext = context {
+            contextReturned = contextReturned context || (all contextReturned (branchesContexts ++ [elseContext']) && isJust melse)
+        }
     in
-        (errors, Conditional (ann, TNil) branches' melse', context) -- context unchanged
+        (errors, Conditional (ann, TNil) branches' melse', newContext)
 typeCheckCommand context (ForEach ann item collection body) =
     let
         (cErrors, collection') = typeOf context collection

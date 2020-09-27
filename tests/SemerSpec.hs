@@ -61,11 +61,31 @@ spec = do
                         let
                             block =
                               [
-                                While () (Variable () "foo") [Return () (Number () 1)]
+                                While () (Variable () "foo") [Return () (Number () 1)],
+                                Conditional () [
+                                    (Boolean () False, [Return () (Number () 1)])
+                                ] Nothing
                               ]
                             baseContext = emptyContext { contextBindings = Map.fromList [("foo", TBool)] }
 
                             (errors, _commands, context') = typeCheckCommands baseContext block
                         in do
                             context' `shouldBe` baseContext
+                            errors `shouldBe` []
+
+                describe "when in all branches of nested block" $ do
+                    it "should mark rest of the block unreachable" $
+                        let
+                            block =
+                              [
+                                Conditional () [
+                                    (Boolean () False, [Return () (Number () 1)]),
+                                    (Boolean () True, [Return () (Number () 2)])
+                                ] (Just [Return () (Number () 3)])
+                              ]
+                            expectedContext = emptyContext { contextReturned = True }
+
+                            (errors, _commands, context') = typeCheckCommands emptyContext block
+                        in do
+                            context' `shouldBe` expectedContext
                             errors `shouldBe` []
