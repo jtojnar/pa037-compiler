@@ -12,6 +12,7 @@ executables:
     dependencies:
       - base
       - compiler
+      - filepath
       - llvm-hs-pretty >= 0.9 && < 0.10
       - megaparsec
       - optparse-applicative

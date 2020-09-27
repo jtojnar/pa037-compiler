@@ -19,6 +19,7 @@ import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
 import System.IO (Handle, IOMode(..), hPutStr, withFile, stderr, stdout)
+import System.FilePath ((-<.>), takeFileName)
 import Semer
 
 default (Text)
@@ -66,11 +67,17 @@ programInfo =
         (flagsParser <**> Opt.helper)
         (Opt.fullDesc <> Opt.progDesc "Simple compiler for PA037 course" <> Opt.header "compiler")
 
+defaultOutputPath :: CompilerMode -> FilePath -> FilePath
+defaultOutputPath PrintAst _ = "-"
+defaultOutputPath CheckAst _ = "-"
+defaultOutputPath EmitIr "-" = "stdin.ll"
+defaultOutputPath EmitIr inputPath = takeFileName inputPath -<.> "ll"
+
 main :: IO ()
 main = do
     flags@(Flags { mode, inputPath, outputPath }) <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
-    handleOutput <- case fromMaybe outputPath outputPath of
+    handleOutput <- case fromMaybe (defaultOutputPath mode inputPath) outputPath of
         "-" -> return $ (\fn -> fn stdout)
         path -> return $ withFile path WriteMode
 
