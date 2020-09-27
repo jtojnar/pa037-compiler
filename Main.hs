@@ -6,6 +6,7 @@ module Main where
 import Ast (Program, Type)
 import Codegen.LLVM (codegen)
 import Control.Applicative ((<|>), (<**>), optional)
+import Control.Monad (void)
 import Data.Semigroup ((<>))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -19,20 +20,21 @@ import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
 import System.IO (Handle, IOMode(..), hPutStr, withFile, stderr, stdout)
-import System.FilePath ((-<.>), takeFileName)
+import System.FilePath ((-<.>), dropExtension, takeFileName)
+import System.Process
 import Semer
 
 default (Text)
 
-data CompilerMode = PrintAst | CheckAst | EmitIr
+data BuildStage = PrintAst | CheckAst | EmitIr | ConvertToAssembly | Compile deriving (Eq, Ord)
 
 data Flags = Flags {
-    mode :: CompilerMode,
+    finalStage :: BuildStage,
     inputPath :: FilePath,
-    outputPath :: Maybe FilePath
+    mOutputPath :: Maybe FilePath
 }
 
-modeFlags :: Opt.Parser CompilerMode
+modeFlags :: Opt.Parser BuildStage
 modeFlags =
     Opt.flag' PrintAst (
         Opt.long "print-ast"
@@ -44,9 +46,17 @@ modeFlags =
     )
     <|> Opt.flag' EmitIr (
         Opt.long "emit-ir"
-        <> Opt.help "Print LLVM intermediate representation (default action)"
+        <> Opt.help "Generate LLVM intermediate representation"
     )
-    <|> pure EmitIr
+    <|> Opt.flag' ConvertToAssembly (
+        Opt.long "convert-to-assembly"
+        <> Opt.help "Generate assembly for current system"
+    )
+    <|> Opt.flag' Compile (
+        Opt.long "convert-to-assembly"
+        <> Opt.help "Generate assembly for current system (default action)"
+    )
+    <|> pure Compile
 
 flagsParser :: Opt.Parser Flags
 flagsParser = Flags
@@ -67,31 +77,48 @@ programInfo =
         (flagsParser <**> Opt.helper)
         (Opt.fullDesc <> Opt.progDesc "Simple compiler for PA037 course" <> Opt.header "compiler")
 
-defaultOutputPath :: CompilerMode -> FilePath -> FilePath
+defaultOutputPath :: BuildStage -> FilePath -> FilePath
 defaultOutputPath PrintAst _ = "-"
 defaultOutputPath CheckAst _ = "-"
 defaultOutputPath EmitIr "-" = "stdin.ll"
 defaultOutputPath EmitIr inputPath = takeFileName inputPath -<.> "ll"
+defaultOutputPath ConvertToAssembly inputPath = "stdin.s"
+defaultOutputPath ConvertToAssembly inputPath = takeFileName inputPath -<.> "s"
+defaultOutputPath Compile inputPath = "a.out"
+defaultOutputPath Compile inputPath = dropExtension (takeFileName inputPath)
+
+mkOutputHandler :: FilePath -> (Handle -> IO ()) -> IO ()
+mkOutputHandler "-" = \fn -> fn stdout
+mkOutputHandler path = withFile path WriteMode
 
 main :: IO ()
 main = do
-    flags@(Flags { mode, inputPath, outputPath }) <- Opt.execParser programInfo
+    flags@(Flags { finalStage, inputPath, mOutputPath }) <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
-    handleOutput <- case fromMaybe (defaultOutputPath mode inputPath) outputPath of
-        "-" -> return $ (\fn -> fn stdout)
-        path -> return $ withFile path WriteMode
+    let outputPath = fromMaybe (defaultOutputPath finalStage inputPath) mOutputPath
 
-    handleOutput $ \output -> case parse (program pos) inputPath contents of
+    mkOutputHandler outputPath $ \output -> case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> handleAst output ast flags
+        Right ast -> handleAst output outputPath ast flags
 
-handleAst :: Handle -> Program Pos -> Flags -> IO ()
-handleAst output ast Flags { mode = PrintAst } = T.hPutStrLn output (T.pack (show ast))
-handleAst output ast flags =
+handleAst :: Handle -> FilePath -> Program Pos -> Flags -> IO ()
+handleAst output outputPath ast Flags { finalStage = PrintAst } = T.hPutStrLn output (T.pack (show ast))
+handleAst output outputPath ast flags =
     case typeCheck ast of
-        ([], ast') -> handleTypeCheckedAst output ast' flags
+        ([], ast') -> handleTypeCheckedAst output outputPath ast' flags
         (errs, ast) -> hPutStr stderr (show errs)
 
-handleTypeCheckedAst :: Handle -> Program (Pos, Type) -> Flags -> IO ()
-handleTypeCheckedAst output ast Flags { mode = CheckAst } = T.hPutStrLn output (T.pack (show ast))
-handleTypeCheckedAst output ast Flags { inputPath } = T.hPutStrLn output $ ppllvm (codegen inputPath ast)
+handleTypeCheckedAst :: Handle -> FilePath -> Program (Pos, Type) -> Flags -> IO ()
+handleTypeCheckedAst output outputPath ast Flags { finalStage = CheckAst } = T.hPutStrLn output (T.pack (show ast))
+handleTypeCheckedAst output outputPath ast flags@(Flags { inputPath }) = handleLlvmIr output outputPath (ppllvm (codegen inputPath ast)) flags
+
+handleLlvmIr :: Handle -> FilePath -> T.Text -> Flags -> IO ()
+handleLlvmIr output outputPath ir Flags { finalStage = EmitIr } = T.hPutStrLn output ir
+handleLlvmIr output outputPath ir flags = do
+    assembly <- readProcess "llc" ["-o", "-"] (T.unpack ir)
+    handleAssembly output outputPath assembly flags
+
+handleAssembly :: Handle -> FilePath -> String -> Flags -> IO ()
+handleAssembly output outputPath assembly Flags { finalStage = ConvertToAssembly } = hPutStr output assembly
+handleAssembly output outputPath assembly flags = do
+    void (readProcess "clang" ["-x", "assembler", "-", "-o", outputPath] assembly)
