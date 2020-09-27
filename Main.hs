@@ -99,30 +99,30 @@ main = do
     contents <- if inputPath == "-" then getContents else readFile inputPath
     let outputPath = fromMaybe (defaultOutputPath finalStage inputPath) mOutputPath
 
-    mkOutputHandler outputPath $ \output -> case parse (program pos) inputPath contents of
+    case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> handleAst output outputPath ast contents flags
+        Right ast -> handleAst (mkOutputHandler outputPath) outputPath ast contents flags
 
-handleAst :: Handle -> FilePath -> Program Pos -> Text -> Flags -> IO ()
-handleAst output outputPath ast contents Flags { finalStage = PrintAst } = TL.hPutStrLn output (TL.pack (show ast))
-handleAst output outputPath ast contents flags =
+handleAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program Pos -> Text -> Flags -> IO ()
+handleAst outputHandler outputPath ast contents Flags { finalStage = PrintAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
+handleAst outputHandler outputPath ast contents flags =
     case typeCheck ast of
-        ([], ast') -> handleTypeCheckedAst output outputPath ast' flags
+        ([], ast') -> handleTypeCheckedAst outputHandler outputPath ast' flags
         (errs, ast) -> T.hPutStr stderr (semErrorsPretty contents errs)
 
-handleTypeCheckedAst :: Handle -> FilePath -> Program (Pos, Type) -> Flags -> IO ()
-handleTypeCheckedAst output outputPath ast Flags { finalStage = CheckAst } = TL.hPutStrLn output (TL.pack (show ast))
-handleTypeCheckedAst output outputPath ast flags@(Flags { inputPath }) = handleLlvmIr output outputPath (ppllvm (codegen inputPath ast)) flags
+handleTypeCheckedAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program (Pos, Type) -> Flags -> IO ()
+handleTypeCheckedAst outputHandler outputPath ast Flags { finalStage = CheckAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
+handleTypeCheckedAst outputHandler outputPath ast flags@(Flags { inputPath }) = handleLlvmIr outputHandler outputPath (ppllvm (codegen inputPath ast)) flags
 
-handleLlvmIr :: Handle -> FilePath -> TL.Text -> Flags -> IO ()
-handleLlvmIr output outputPath ir Flags { finalStage = EmitIr } = TL.hPutStrLn output ir
-handleLlvmIr output outputPath ir flags = do
+handleLlvmIr :: ((Handle -> IO ()) -> IO ()) -> FilePath -> TL.Text -> Flags -> IO ()
+handleLlvmIr outputHandler outputPath ir Flags { finalStage = EmitIr } = outputHandler $ \output -> TL.hPutStrLn output ir
+handleLlvmIr outputHandler outputPath ir flags = do
     assembly <- readProcess "llc" ["-o", "-"] (TL.unpack ir)
-    handleAssembly output outputPath assembly flags
+    handleAssembly outputHandler outputPath assembly flags
 
-handleAssembly :: Handle -> FilePath -> String -> Flags -> IO ()
-handleAssembly output outputPath assembly Flags { finalStage = ConvertToAssembly } = hPutStr output assembly
-handleAssembly output outputPath assembly flags = do
+handleAssembly :: ((Handle -> IO ()) -> IO ()) -> FilePath -> String -> Flags -> IO ()
+handleAssembly outputHandler outputPath assembly Flags { finalStage = ConvertToAssembly } = outputHandler $ \output -> hPutStr output assembly
+handleAssembly outputHandler outputPath assembly flags = do
     void (readProcess "clang" ["-x", "assembler", "-", "-o", outputPath] assembly)
 
 {-| Pretty print Semer errors just like Megaparsec does -}
