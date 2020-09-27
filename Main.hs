@@ -4,7 +4,6 @@
 module Main where
 
 import Ast (Program, Type)
-import Codegen.LLVM (codegen)
 import Control.Applicative ((<|>), (<**>), optional)
 import Control.Monad (void)
 import Data.Semigroup ((<>))
@@ -16,6 +15,7 @@ import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import Helpers
+import Codegen (codegen)
 import LLVM.Pretty
 import Parser (Pos(..), program, pos)
 import Prelude hiding (getContents, readFile)
