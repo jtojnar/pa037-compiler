@@ -87,6 +87,7 @@ typeVal
     <|> pure TChar <* text "char"
     <|> pure parenthisedTypes <*> (text "(" *> (typeVal `sepBy` text ",") <* ")")
     <|> pure TPtr <* text "ptr" <*> typeVal
+    <|> flip TArray <$> (text "[" *> typeVal <* text ";") <*> (expression (return ()) <* text "]") -- TODO: wire in annotations
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
 program :: Parser ann -> Parser (Program ann)

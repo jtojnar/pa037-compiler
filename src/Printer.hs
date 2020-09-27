@@ -38,4 +38,6 @@ ppType TChar = "char"
 ppType TBool = "bool"
 ppType TNil = "()"
 ppType (TPtr t) = "ptr " <> ppType t
+ppType (TArray (Number _ size) t) = "[" <> ppType t <> "; " <> tshow size <> "]"
+ppType (TArray sizeExpr t) = "[" <> ppType t <> "; " <> ppExpr sizeExpr <> "]"
 ppType (Function args result variadic) = "fn(" <> T.intercalate ", " (map ppType args) <> (if variadic then ", …" else "") <> ") -> " <> ppType result

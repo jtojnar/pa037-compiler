@@ -4,7 +4,7 @@ module Ast where
 
 import Data.Text (Text)
 
-data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | Function [Type] Type Bool
+data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | TArray (Expression ()) Type | Function [Type] Type Bool
     deriving (Eq, Show)
 
 isNumericType :: Type -> Bool
@@ -21,6 +21,7 @@ isEqType TChar = True
 isEqType TBool = True
 isEqType TNil = True
 isEqType (TPtr _) = True
+isEqType (TArray _ _) = True
 isEqType _ = False
 
 isOrdType :: Type -> Bool
@@ -35,6 +36,13 @@ Equality is defined inductively, with the addition that ⊥ can be unified with 
 tEquals :: Type -> Type -> Bool
 tEquals TBot _ = True
 tEquals _ TBot = True
+
+-- When static size is specified in both arrays, it needs to match.
+tEquals (TArray (Number _ n1) ty1) (TArray (Number _ n2) ty2) = n1 == n2 && ty1 `tEquals` ty2
+-- Otherwise, we cannot determine it at build time se we treat the arrays as plain pointers.
+tEquals (TArray _size ty) other = tEquals (TPtr ty) other
+tEquals other (TArray _size ty) = tEquals other (TPtr ty)
+
 tEquals l r = l == r
 
 data Expression ann

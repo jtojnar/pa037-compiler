@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE TupleSections #-}
 
 module Codegen where
 
@@ -14,6 +15,7 @@ import Data.String (fromString)
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Map as Map
 import Data.Text.Lazy.IO as T
+import Data.Word (Word32)
 import qualified Data.Text as T
 
 import LLVM.AST hiding (function)
@@ -105,6 +107,17 @@ call_ callee args = do
     callee' <- exprCodegen callee
     call callee' (makeCallArgs args')
 
+{-| Allocate memory on a stack for given type.
+When the type is a pointer, we will only allocate a cell of pointer size.
+When the type is an array, we will allocate a cell for all `size` items
+but not recursively – only one dimensional arrays can be currently allocated. -}
+alloca_ :: Ast.Type -> Word32 -> Codegen Operand
+alloca_ (TArray (Number _ size) ty) = alloca (codegenType ty) (Just (ConstantOperand (C.Int 32 (fromIntegral size))))
+alloca_ (TArray sizeExpr ty) = \alignment -> do
+    size <- exprCodegen (mapExpressionAnn (, TBot) sizeExpr) -- TODO: include annotations in Type
+    alloca (codegenType ty) (Just size) alignment
+alloca_ ty = alloca (codegenType ty) Nothing -- single element
+
 {-| Generate a Value representing constant True. -}
 true :: Operand
 true = ConstantOperand (C.Int 1 1)
@@ -113,6 +126,9 @@ true = ConstantOperand (C.Int 1 1)
 false :: Operand
 false = ConstantOperand (C.Int 1 0)
 
+{-| If we use 0 for alignment, LLVM will do its own thing. -}
+defaultAlignment = 0
+
 {-| Generate a Value for the result of comparison of two operands of given type for equality. -}
 emitIsEqual :: Ast.Type -> Operand -> Operand -> Codegen Operand
 emitIsEqual TBool = icmp IntegerPredicate.EQ
@@ -120,6 +136,7 @@ emitIsEqual TChar = icmp IntegerPredicate.EQ
 emitIsEqual TInt32 = icmp IntegerPredicate.EQ
 emitIsEqual TNil = \_ _ -> return true -- Nil tuples are all the same.
 emitIsEqual (TPtr _) = icmp IntegerPredicate.EQ -- icmp supports pointer comparisons too.
+emitIsEqual (TArray _ _) = icmp IntegerPredicate.EQ -- Arrays are just pointers.
 
 {-| Generate a Value for the result of comparison of two operands of given type for inequality. -}
 emitIsNotEqual :: Ast.Type -> Operand -> Operand -> Codegen Operand
@@ -128,6 +145,7 @@ emitIsNotEqual TChar = icmp IntegerPredicate.NE
 emitIsNotEqual TInt32 = icmp IntegerPredicate.NE
 emitIsNotEqual TNil = \_ _ -> return false -- Nil tuples are all the same.
 emitIsNotEqual (TPtr _) = icmp IntegerPredicate.NE
+emitIsNotEqual (TArray _ _) = icmp IntegerPredicate.NE
 
 exprCodegen :: Expression (ann, Ast.Type) -> Codegen Operand
 exprCodegen (Addition ann lhs rhs) = do
@@ -275,11 +293,11 @@ commandCodegen (Return ann expr) = do
     ret result
 commandCodegen (Declaration ann name ty (Just expr)) = do
     val <- exprCodegen expr
-    var <- alloca (codegenType ty) Nothing 0 -- default number of elements and alignment
+    var <- alloca_ ty defaultAlignment
     store var 0 val -- default alignment
     assign (T.unpack name) var
 commandCodegen (Declaration ann name ty Nothing) = do
-    var <- alloca (codegenType ty) Nothing 0 -- default number of elements and alignment
+    var <- alloca_ ty defaultAlignment
     assign (T.unpack name) var
 commandCodegen (Assignment ann name expr) = do
     val <- exprCodegen expr
@@ -297,6 +315,8 @@ codegenType TChar = i8 -- We will use UTF-8 for simplicity.
 codegenType TBool = i1
 codegenType TNil = void
 codegenType (TPtr nested) = ptr (codegenType nested)
+codegenType (TArray (Number _ size) nested) = ArrayType (fromIntegral size) (codegenType nested)
+codegenType (TArray _ nested) = ptr (codegenType nested) -- Arrays with dynamic size are just pointers.
 codegenType (Ast.Function args result variadic) =
     FunctionType {
         resultType = codegenType result,
@@ -330,8 +350,8 @@ codegenFunctionDefinition (name, FunctionDefinition _endAnn args resultType vari
                         let argNames = map (T.unpack . fst) args
                         freshBlock "entry"
                         forM (zip3 argNames argTypes argOperands) $ \(name, ty, register) -> do
-                            var <- alloca ty Nothing 0 -- default number of elements and alignment
-                            store var 0 register -- default alignment
+                            var <- alloca ty Nothing defaultAlignment
+                            store var defaultAlignment register
                             assign name var
                         commandsCodegen commands
                     )
