@@ -3,7 +3,7 @@
 
 {-| Semantic analyser, mainly type-checks the programs
 -}
-module Semer (typeCheck) where
+module Semer (typeCheck, typeCheckCommands, Context(..), SemanticError(..)) where
 
 import Ast
 import Control.Applicative ((<|>), optional, some, many)
@@ -27,7 +27,7 @@ data Context = Context {
     contextResult :: Type,
     contextReturned :: Bool,
     contextFunctionName:: Text
-}
+} deriving (Eq, Show)
 
 contextLookupBinding :: Identifier -> Context -> Maybe Type
 contextLookupBinding name = Map.lookup name . contextBindings
@@ -63,11 +63,13 @@ typeCheckCommands :: Context -> Commands ann -> ([SemanticError ann], Commands (
 typeCheckCommands originalContext =
     foldl checkCommand ([], [], originalContext)
     where
-        checkCommand (errors, commands, previousContext) command =
+        checkCommand (previousErrors, commands, previousContext) command =
             let
+                alreadyReturnedMessage = "Unexpected command, the function already returned."
+                alreadyReturnedErrors = if contextReturned previousContext && not (any (\(SemanticError _ msg) -> msg == alreadyReturnedMessage) previousErrors) then [SemanticError [commandAnn command] alreadyReturnedMessage] else []
                 (newErrors, newCommand, newContext) = typeCheckCommand previousContext command
             in
-                (errors ++ newErrors, commands ++ [newCommand], newContext)
+                (previousErrors ++ alreadyReturnedErrors ++ newErrors, commands ++ [newCommand], newContext)
 
 {-| Type-check body of a function
 -}
@@ -104,7 +106,7 @@ typeCheckCommand context (ForEach ann item collection body) =
         (bodyErrors, body', context') = typeCheckCommands context body
         errors = cErrors ++ bodyErrors
     in
-        (errors, ForEach (ann, TNil) item collection' body', context')
+        (errors, ForEach (ann, TNil) item collection' body', context) -- context unchanged
 typeCheckCommand context (While ann condition body) =
     let
         (cErrors, condition') = typeOf context condition

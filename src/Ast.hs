@@ -131,3 +131,13 @@ data Command ann
     | Assignment ann Identifier (Expression ann)
     | CCall ann (Expression ann) [(Expression ann)]
     deriving (Eq, Show)
+
+{-| Extract annotation from a command -}
+commandAnn :: Command ann -> ann
+commandAnn (Conditional ann _ _) = ann
+commandAnn (ForEach ann _ _ _) = ann
+commandAnn (While ann _ _) = ann
+commandAnn (Return ann _) = ann
+commandAnn (Declaration ann _ _ _) = ann
+commandAnn (Assignment ann _ _) = ann
+commandAnn (CCall ann _ _) = ann
