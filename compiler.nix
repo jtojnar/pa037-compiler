@@ -2,14 +2,12 @@
 , base
 , hashmap
 , hpack
-, HUnit
 , llvm-hs
 , llvm-hs-pretty
 , megaparsec
 , optparse-applicative
 , stdenv
-, tasty
-, tasty-hunit
+, hspec
 , text
 }:
 
@@ -38,10 +36,8 @@ mkDerivation {
 
   testHaskellDepends = [
     base
-    HUnit
     megaparsec
-    tasty
-    tasty-hunit
+    hspec
     text
   ];
 
