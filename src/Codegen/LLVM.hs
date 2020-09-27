@@ -311,7 +311,7 @@ identifierToParameterName :: Identifier -> ParameterName
 identifierToParameterName = fromString . T.unpack
 
 codegenFunctionDefinition :: (Identifier, FunctionDefinition (ann, Ast.Type)) -> Modulegen Operand
-codegenFunctionDefinition (name, FunctionDefinition args resultType variadic mbody) =
+codegenFunctionDefinition (name, FunctionDefinition _endAnn args resultType variadic mbody) =
     let
         name' = identifierToName name
         args' = map (\(name, ty) -> (codegenType ty, identifierToParameterName name)) args

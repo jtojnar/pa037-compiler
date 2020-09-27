@@ -89,3 +89,12 @@ spec = do
                         in do
                             context' `shouldBe` expectedContext
                             errors `shouldBe` []
+
+        describe "Function" $ do
+            it "expects a return statement" $
+                let
+                    fn = FunctionDefinition () mempty TInt32 False (Just [])
+                    functions = mempty
+                    (errors, _fn') = typeCheckFunction functions ("foo", fn)
+                in do
+                    errors `shouldBe` [SemanticError [()] "Function “foo” does not contain a return statement in all branches."]

@@ -111,6 +111,7 @@ type Program ann = [(Identifier, FunctionDefinition ann)]
 type BinaryOperator ann = Expression ann -> Expression ann -> Expression ann
 
 data FunctionDefinition ann = FunctionDefinition {
+    endAnnotation :: ann,
     funDefArguments :: [(Identifier, Type)],
     funDefResultType :: Type,
     funDefVariadic :: Bool,

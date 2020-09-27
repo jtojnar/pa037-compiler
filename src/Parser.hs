@@ -90,22 +90,22 @@ typeVal
     <|> pure TBool <* text "bool") <?> "type") <* skipSpace
 
 program :: Parser ann -> Parser (Program ann)
-program annp = skipSpace *> many ((funDef annp <|> extern)) <* endOfInput
+program annp = skipSpace *> many ((funDef annp <|> extern annp)) <* endOfInput
 
 arguments :: Parser [(Identifier, Type)]
 arguments = ((,) <$> identifier <* text ":" <*> typeVal) `sepBy` text ","
 
 funDef :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
-funDef annp = handleFunDef <$> (text "fn" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands annp) <* text "}"
+funDef annp = handleFunDef <$> (text "fn" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands annp) <*> annp <* text "}"
   where
-    handleFunDef name arguments result body = (name, FunctionDefinition arguments result False (Just body))
+    handleFunDef name arguments result body endAnn = (name, FunctionDefinition endAnn arguments result False (Just body))
 
 {-| Define external function.
 Unlike regular functions, these can be variadic. -}
-extern :: Parser (Identifier, FunctionDefinition ann)
-extern = handleExtern <$> ((text "variadic" *> pure True) <|> pure False) <*> (text "extern" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <* text ";"
+extern :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
+extern annp = handleExtern <$> ((text "variadic" *> pure True) <|> pure False) <*> (text "extern" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> annp <* text ";"
   where
-    handleExtern variadic name arguments result = (name, FunctionDefinition arguments result variadic Nothing)
+    handleExtern variadic name arguments result endAnn = (name, FunctionDefinition endAnn arguments result variadic Nothing)
 
 commands :: Parser ann -> Parser (Commands ann)
 commands annp = many (command annp)

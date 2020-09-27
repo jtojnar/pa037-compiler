@@ -3,7 +3,7 @@
 
 {-| Semantic analyser, mainly type-checks the programs
 -}
-module Semer (typeCheck, typeCheckCommands, Context(..), SemanticError(..)) where
+module Semer (typeCheck, typeCheckCommands, typeCheckFunction, Context(..), SemanticError(..)) where
 
 import Ast
 import Control.Applicative ((<|>), optional, some, many)
@@ -47,9 +47,9 @@ typeCheck program =
         (concatMap fst checkedFunctions, map snd checkedFunctions)
 
 typeCheckFunction :: Map Identifier Type -> (Identifier, FunctionDefinition ann) -> ([SemanticError ann], (Identifier, FunctionDefinition (ann, Type)))
-typeCheckFunction functions (name, FunctionDefinition args result variadic Nothing) = ([], (name, FunctionDefinition args result variadic Nothing))
-typeCheckFunction functions (name, FunctionDefinition args result variadic (Just body)) = (bodyErrors, (name, FunctionDefinition args result variadic (Just newBody)))
-    where
+typeCheckFunction functions (name, FunctionDefinition endAnn args result variadic Nothing) = ([], (name, FunctionDefinition (endAnn, TNil) args result variadic Nothing))
+typeCheckFunction functions (name, FunctionDefinition endAnn args result variadic (Just body)) =
+    let
         context = Context {
             contextBindings = functions `Map.union` Map.fromList args,
             contextResult = result,
@@ -57,6 +57,10 @@ typeCheckFunction functions (name, FunctionDefinition args result variadic (Just
             contextFunctionName = name
         }
         (bodyErrors, newBody, newContext) = typeCheckCommands context body
+        missingReturnErrors = if contextReturned newContext then [] else [SemanticError [endAnn] ("Function “" <> name <> "” does not contain a return statement in all branches.")]
+    in
+        -- The type part of end annotation returned in FunctionDefinition is not used but it is nicer than parametrizing everything by a second annotation type.
+        (bodyErrors ++ missingReturnErrors, (name, FunctionDefinition (endAnn, TNil) args result variadic (Just newBody)))
 
 {-| Type-check body of a function
 -}
