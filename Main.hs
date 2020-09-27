@@ -22,6 +22,7 @@ import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse, sourceName, sourceLine, sourceColumn, unPos)
 import System.IO (Handle, IOMode(..), hPutStr, withFile, stderr, stdout)
+import System.Exit
 import System.FilePath ((-<.>), dropExtension, takeFileName)
 import System.Process
 import Semer
@@ -100,7 +101,9 @@ main = do
     let outputPath = fromMaybe (defaultOutputPath finalStage inputPath) mOutputPath
 
     case parse (program pos) inputPath contents of
-        Left err -> hPutStr stderr (errorBundlePretty err)
+        Left err -> do
+            hPutStr stderr (errorBundlePretty err)
+            exitFailure
         Right ast -> handleAst (mkOutputHandler outputPath) outputPath ast contents flags
 
 handleAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program Pos -> Text -> Flags -> IO ()
@@ -108,7 +111,9 @@ handleAst outputHandler outputPath ast contents Flags { finalStage = PrintAst } 
 handleAst outputHandler outputPath ast contents flags =
     case typeCheck ast of
         ([], ast') -> handleTypeCheckedAst outputHandler outputPath ast' flags
-        (errs, ast) -> T.hPutStr stderr (semErrorsPretty contents errs)
+        (errs, ast) -> do
+            T.hPutStr stderr (semErrorsPretty contents errs)
+            exitFailure
 
 handleTypeCheckedAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program (Pos, Type) -> Flags -> IO ()
 handleTypeCheckedAst outputHandler outputPath ast Flags { finalStage = CheckAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
@@ -117,13 +122,18 @@ handleTypeCheckedAst outputHandler outputPath ast flags@(Flags { inputPath }) = 
 handleLlvmIr :: ((Handle -> IO ()) -> IO ()) -> FilePath -> TL.Text -> Flags -> IO ()
 handleLlvmIr outputHandler outputPath ir Flags { finalStage = EmitIr } = outputHandler $ \output -> TL.hPutStrLn output ir
 handleLlvmIr outputHandler outputPath ir flags = do
-    assembly <- readProcess "llc" ["-o", "-"] (TL.unpack ir)
-    handleAssembly outputHandler outputPath assembly flags
+    (status, assembly, stderrText) <- readProcessWithExitCode "llc" ["-o", "-"] (TL.unpack ir)
+    hPutStr stderr stderrText
+    case status of
+        ExitSuccess -> handleAssembly outputHandler outputPath assembly flags
+        _ -> exitWith status
 
 handleAssembly :: ((Handle -> IO ()) -> IO ()) -> FilePath -> String -> Flags -> IO ()
 handleAssembly outputHandler outputPath assembly Flags { finalStage = ConvertToAssembly } = outputHandler $ \output -> hPutStr output assembly
 handleAssembly outputHandler outputPath assembly flags = do
-    void (readProcess "clang" ["-x", "assembler", "-", "-o", outputPath] assembly)
+    (status, _, stderrText) <- readProcessWithExitCode "clang" ["-x", "assembler", "-", "-o", outputPath] assembly
+    hPutStr stderr stderrText
+    exitWith status
 
 {-| Pretty print Semer errors just like Megaparsec does -}
 semErrorsPretty :: Text -> [SemanticError Pos] -> Text
