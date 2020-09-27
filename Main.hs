@@ -7,15 +7,18 @@ import Ast (Program, Type)
 import Codegen.LLVM (codegen)
 import Control.Applicative ((<|>), (<**>), optional)
 import Data.Semigroup ((<>))
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text.IO (getContents, readFile)
+import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
+import Helpers
 import LLVM.Pretty
 import Parser (Pos, program, pos)
 import Prelude hiding (getContents, readFile)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (errorBundlePretty, parse)
-import System.IO (hPutStr, stderr)
+import System.IO (Handle, IOMode(..), hPutStr, withFile, stderr, stdout)
 import Semer
 
 default (Text)
@@ -67,18 +70,21 @@ main :: IO ()
 main = do
     flags@(Flags { mode, inputPath, outputPath }) <- Opt.execParser programInfo
     contents <- if inputPath == "-" then getContents else readFile inputPath
+    handleOutput <- case fromMaybe outputPath outputPath of
+        "-" -> return $ (\fn -> fn stdout)
+        path -> return $ withFile path WriteMode
 
-    case parse (program pos) inputPath contents of
+    handleOutput $ \output -> case parse (program pos) inputPath contents of
         Left err -> hPutStr stderr (errorBundlePretty err)
-        Right ast -> handleAst ast flags
+        Right ast -> handleAst output ast flags
 
-handleAst :: Program Pos -> Flags -> IO ()
-handleAst ast Flags { mode = PrintAst } = print ast
-handleAst ast flags =
+handleAst :: Handle -> Program Pos -> Flags -> IO ()
+handleAst output ast Flags { mode = PrintAst } = T.hPutStrLn output (T.pack (show ast))
+handleAst output ast flags =
     case typeCheck ast of
-        ([], ast') -> handleTypeCheckedAst ast' flags
+        ([], ast') -> handleTypeCheckedAst output ast' flags
         (errs, ast) -> hPutStr stderr (show errs)
 
-handleTypeCheckedAst :: Program (Pos, Type) -> Flags -> IO ()
-handleTypeCheckedAst ast Flags { mode = CheckAst } = print ast
-handleTypeCheckedAst ast Flags { inputPath } = T.putStrLn $ ppllvm (codegen inputPath ast)
+handleTypeCheckedAst :: Handle -> Program (Pos, Type) -> Flags -> IO ()
+handleTypeCheckedAst output ast Flags { mode = CheckAst } = T.hPutStrLn output (T.pack (show ast))
+handleTypeCheckedAst output ast Flags { inputPath } = T.hPutStrLn output $ ppllvm (codegen inputPath ast)
