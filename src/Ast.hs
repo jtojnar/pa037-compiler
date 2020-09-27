@@ -38,71 +38,49 @@ tEquals _ TBot = True
 tEquals l r = l == r
 
 data Expression ann
-    = Addition ann (Expression ann) (Expression ann)
-    | Subtraction ann (Expression ann) (Expression ann)
-    | Multiplication ann (Expression ann) (Expression ann)
-    | Division ann (Expression ann) (Expression ann)
-    | Conjunction ann (Expression ann) (Expression ann)
-    | Disjunction ann (Expression ann) (Expression ann)
-    | Negation ann (Expression ann)
-    | Equality ann (Expression ann) (Expression ann)
-    | Inequality ann (Expression ann) (Expression ann)
-    | LessThan ann (Expression ann) (Expression ann)
-    | LessThanEqual ann (Expression ann) (Expression ann)
-    | Greater ann (Expression ann) (Expression ann)
-    | GreaterThanEqual ann (Expression ann) (Expression ann)
-    | Number ann Int
-    | Boolean ann Bool
-    | Character ann Char
-    | String ann Text
-    | Variable ann Identifier
-    | Call ann (Expression ann) [(Expression ann)]
-    | ArrayAccess ann (Expression ann) (Expression ann)
+    = Addition { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Subtraction { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Multiplication { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Division { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Conjunction { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Disjunction { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Negation { expressionAnn :: ann, expressionInner :: Expression ann }
+    | Equality { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Inequality { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | LessThan { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | LessThanEqual { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Greater { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | GreaterThanEqual { expressionAnn :: ann, expressionLhs :: Expression ann, expressionRhs :: Expression ann }
+    | Number { expressionAnn :: ann, expressionNumVal :: Int }
+    | Boolean { expressionAnn :: ann, expressionBoolVal :: Bool }
+    | Character { expressionAnn :: ann, expressionCharVal :: Char }
+    | String { expressionAnn :: ann, expressionStringVal :: Text }
+    | Variable { expressionAnn :: ann, expressionVarName :: Identifier }
+    | Call { expressionAnn :: ann, expressionCallee :: Expression ann, expressionArgs :: [Expression ann] }
+    | ArrayAccess { expressionAnn :: ann, expressionIndexable :: Expression ann, expressionIndex :: Expression ann }
     deriving (Eq, Show)
 
-expressionAnn :: Expression ann -> ann
-expressionAnn (Addition ann _ _) = ann
-expressionAnn (Subtraction ann _ _) = ann
-expressionAnn (Multiplication ann _ _) = ann
-expressionAnn (Division ann _ _) = ann
-expressionAnn (Conjunction ann _ _) = ann
-expressionAnn (Disjunction ann _ _) = ann
-expressionAnn (Negation ann _) = ann
-expressionAnn (Equality ann _ _) = ann
-expressionAnn (Inequality ann _ _) = ann
-expressionAnn (LessThan ann _ _) = ann
-expressionAnn (LessThanEqual ann _ _) = ann
-expressionAnn (Greater ann _ _) = ann
-expressionAnn (GreaterThanEqual ann _ _) = ann
-expressionAnn (Number ann _) = ann
-expressionAnn (Boolean ann _) = ann
-expressionAnn (Character ann _) = ann
-expressionAnn (String ann _) = ann
-expressionAnn (Variable ann _) = ann
-expressionAnn (Call ann _ _) = ann
-expressionAnn (ArrayAccess ann _ _) = ann
-
-stripAnn :: Expression ann -> Expression ()
-stripAnn (Addition ann l r) = Addition () (stripAnn l) (stripAnn r)
-stripAnn (Subtraction ann l r) = Subtraction () (stripAnn l) (stripAnn r)
-stripAnn (Multiplication ann l r) = Multiplication () (stripAnn l) (stripAnn r)
-stripAnn (Division ann l r) = Division () (stripAnn l) (stripAnn r)
-stripAnn (Conjunction ann l r) = Conjunction () (stripAnn l) (stripAnn r)
-stripAnn (Disjunction ann l r) = Disjunction () (stripAnn l) (stripAnn r)
-stripAnn (Negation ann e) = Negation () (stripAnn e)
-stripAnn (Equality ann l r) = Equality () (stripAnn l) (stripAnn r)
-stripAnn (Inequality ann l r) = Inequality () (stripAnn l) (stripAnn r)
-stripAnn (LessThan ann l r) = LessThan () (stripAnn l) (stripAnn r)
-stripAnn (LessThanEqual ann l r) = LessThanEqual () (stripAnn l) (stripAnn r)
-stripAnn (Greater ann l r) = Greater () (stripAnn l) (stripAnn r)
-stripAnn (GreaterThanEqual ann l r) = GreaterThanEqual () (stripAnn l) (stripAnn r)
-stripAnn (Number ann v) = Number () v
-stripAnn (Boolean ann v) = Boolean () v
-stripAnn (Character ann v) = Character () v
-stripAnn (String ann v) = String () v
-stripAnn (Variable ann n) = Variable () n
-stripAnn (Call ann e args) = Call () (stripAnn e) (map stripAnn args)
-stripAnn (ArrayAccess ann e i) = ArrayAccess () (stripAnn e) (stripAnn i)
+mapExpressionAnn :: (ann -> ann') -> Expression ann -> Expression ann'
+mapExpressionAnn f (Addition ann l r) = Addition (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Subtraction ann l r) = Subtraction (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Multiplication ann l r) = Multiplication (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Division ann l r) = Division (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Conjunction ann l r) = Conjunction (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Disjunction ann l r) = Disjunction (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Negation ann e) = Negation (f ann) (mapExpressionAnn f e)
+mapExpressionAnn f (Equality ann l r) = Equality (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Inequality ann l r) = Inequality (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (LessThan ann l r) = LessThan (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (LessThanEqual ann l r) = LessThanEqual (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Greater ann l r) = Greater (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (GreaterThanEqual ann l r) = GreaterThanEqual (f ann) (mapExpressionAnn f l) (mapExpressionAnn f r)
+mapExpressionAnn f (Number ann v) = Number (f ann) v
+mapExpressionAnn f (Boolean ann v) = Boolean (f ann) v
+mapExpressionAnn f (Character ann v) = Character (f ann) v
+mapExpressionAnn f (String ann v) = String (f ann) v
+mapExpressionAnn f (Variable ann n) = Variable (f ann) n
+mapExpressionAnn f (Call ann e args) = Call (f ann) (mapExpressionAnn f e) (map (mapExpressionAnn f) args)
+mapExpressionAnn f (ArrayAccess ann e i) = ArrayAccess (f ann) (mapExpressionAnn f e) (mapExpressionAnn f i)
 
 type Identifier = Text
 
@@ -124,21 +102,11 @@ funType FunctionDefinition {..} = Function (map snd funDefArguments) funDefResul
 type Commands ann = [Command ann]
 
 data Command ann
-    = Conditional ann [(Expression ann, Commands ann)] (Maybe (Commands ann))
-    | ForEach ann Identifier (Expression ann) (Commands ann)
-    | While ann (Expression ann) (Commands ann)
-    | Return ann (Expression ann)
-    | Declaration ann Identifier Type (Maybe (Expression ann))
-    | Assignment ann Identifier (Expression ann)
-    | CCall ann (Expression ann) [(Expression ann)]
+    = Conditional { commandAnn :: ann, commandBranches :: [(Expression ann, Commands ann)], commandMelse :: Maybe (Commands ann) }
+    | ForEach { commandAnn :: ann, commandLoopVar :: Identifier, commandIterable :: Expression ann, commandBody :: Commands ann }
+    | While { commandAnn :: ann, commandLoopCond :: Expression ann, commandBody :: Commands ann }
+    | Return { commandAnn :: ann, commandReturnVal :: Expression ann }
+    | Declaration { commandAnn :: ann, commandVarName :: Identifier, commandVarType :: Type, commandOptAssignment :: Maybe (Expression ann) }
+    | Assignment { commandAnn :: ann, commandVarName :: Identifier, commandVarValue :: Expression ann }
+    | CCall { commandAnn :: ann, commandCallable :: Expression ann, commandCallArgs :: [Expression ann] }
     deriving (Eq, Show)
-
-{-| Extract annotation from a command -}
-commandAnn :: Command ann -> ann
-commandAnn (Conditional ann _ _) = ann
-commandAnn (ForEach ann _ _ _) = ann
-commandAnn (While ann _ _) = ann
-commandAnn (Return ann _) = ann
-commandAnn (Declaration ann _ _ _) = ann
-commandAnn (Assignment ann _ _) = ann
-commandAnn (CCall ann _ _) = ann
