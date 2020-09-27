@@ -85,9 +85,9 @@ defaultOutputPath PrintAst _ = "-"
 defaultOutputPath CheckAst _ = "-"
 defaultOutputPath EmitIr "-" = "stdin.ll"
 defaultOutputPath EmitIr inputPath = takeFileName inputPath -<.> "ll"
-defaultOutputPath ConvertToAssembly inputPath = "stdin.s"
+defaultOutputPath ConvertToAssembly "-" = "stdin.s"
 defaultOutputPath ConvertToAssembly inputPath = takeFileName inputPath -<.> "s"
-defaultOutputPath Compile inputPath = "a.out"
+defaultOutputPath Compile "-" = "a.out"
 defaultOutputPath Compile inputPath = dropExtension (takeFileName inputPath)
 
 mkOutputHandler :: FilePath -> (Handle -> IO ()) -> IO ()
