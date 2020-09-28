@@ -152,23 +152,23 @@ typeCheckCommand context (Declaration ann name ty mexpr) =
                 in
                     (errors, Declaration (ann, TNil) name ty (Just expr'), context')
             Nothing -> ([], Declaration (ann, TNil) name ty Nothing, context')
-typeCheckCommand context (Assignment ann name expr) =
+typeCheckCommand context (Assignment ann lhs rhs) =
     let
-        (scopeErrors, ty) =
-            case contextLookupBinding name context of
-                Just ty -> ([], ty)
-                Nothing ->
-                    ([SemanticError [ann] ("Variable ‘" <> name <> "’ not declared.")], TBot)
-        (terrors, expr') = typeOf context expr
-        texpr = semType expr'
-        mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
+        (scopeErrors, lhs') = typeOf context lhs
+        tl = semType lhs'
+        (terrors, rhs') = typeOf context rhs
+        tr = semType rhs'
+        varOrElse = case lhs' of
+            Variable _ _ -> "Variable"
+            _ -> "Lvalue"
+        mismatchErrors = if tEquals tr tl then [] else [SemanticError [ann] (varOrElse <> " " <> ppExpr lhs <> " is declared as ‘" <> ppType tl <> "’ but it was set to ‘" <> ppType tr <> "’.")]
         errors = scopeErrors ++ terrors ++ mismatchErrors
     in
-        (errors, Assignment (ann, TNil) name expr', context)
+        (errors, Assignment (ann, TNil) lhs' rhs', context)
 typeCheckCommand context call@(CCall ann callee args) =
     let
-        (errors, expr') = typeOf context (Call ann callee args)
-        Call _ann callee' args' = expr'
+        (errors, rhs') = typeOf context (Call ann callee args)
+        Call _ann callee' args' = rhs'
     in
         (errors, CCall (ann, TNil) callee' args', context)
 

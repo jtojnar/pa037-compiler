@@ -6,10 +6,13 @@ module Parser (Pos(..), command, program, expression, pos) where
 import Ast
 import Control.Applicative ((<|>), optional, some, many)
 import Data.Char (isDigit, ord)
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getSourcePos, manyTill, satisfy, sepBy, sourceName, sourceLine, sourceColumn, unPos)
+import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getOffset, getSourcePos, manyTill, parseError, satisfy, sepBy, sourceName, sourceLine, sourceColumn, unPos)
+import Text.Megaparsec.Error (ErrorItem(..), ParseError(..))
 import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space1, string)
 import Text.Megaparsec.Char.Lexer (charLiteral, space, skipLineComment, skipBlockCommentNested)
 
@@ -121,28 +124,28 @@ command annp
     <|> (While <$> annp <*> (text "while" *> expression annp) <*> block annp <?> "while loop")
     <|> (Return <$> annp <*> (text "return" *> expression annp) <* text ";" <?> "return statement")
     <|> (Declaration <$> annp <*> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression annp)) <* text ";" <?> "declaration")
-    <|> (callOrAssign <$> annp <*> identifier <*> (assignment annp <|> ccall annp) <* text ";")
+    <|> callOrAssign annp
 
 {-| Command starting with an identifier can be either assignment or a function call.
-We have to decide based no whether there is an equal sign.-}
-callOrAssign :: ann -> Identifier -> (ann -> Identifier -> Command ann) -> Command ann
-callOrAssign ann name p = p ann name
-
-{-| Parse a portion of assignment command after the identifier. -}
-assignment :: Parser ann -> Parser (ann -> Identifier -> Command ann)
-assignment annp = (text "=" *> fmap (\expr -> \ann name -> Assignment ann name expr) (expression annp)) <?> "assignment"
-
-{-| Parse a portion of call command after the identifier. -}
-ccall :: Parser ann -> Parser (ann -> Identifier -> Command ann)
-ccall annp = do
-    actions <- some (callArgs annp) <?> "function call"
-    return (\ann name ->
-        let
-            -- The callArgs parser returns (Expr -> Expr) so we need to build the call chain.
-            Call ann' callee args = callOrUse ann name actions
-        in
-            -- We also need to repack the outermost call from an expression to a command.
-            CCall ann' callee args)
+We have to decide based no whether there is an equal sign so we need to use monadic parser. -}
+callOrAssign :: Parser ann -> Parser (Command ann)
+callOrAssign annp = do
+    ann <- annp
+    lhs <- lvalue annp
+    semicolonLocation <- getOffset
+    isAssignment <- (text ";" *> pure False) <|> (text "=" *> pure True)
+    if isAssignment then do
+        rhs <- expression annp <* text ";"
+        return (Assignment ann lhs rhs)
+    else case lhs of
+        -- The lvalue can be one of several expressions but the grammar of the language only allows function calls.
+        -- We also need to repack the outermost call from an expression to a command.
+        Call ann' callee args -> return (CCall ann' callee args)
+        _ ->
+            let
+                es = [Label (NE.fromList "function arguments"), Label (NE.fromList "assignment")]
+            in
+                parseError (TrivialError semicolonLocation (Just (Label (NE.fromList ";"))) (Set.fromList es))
 
 {-| Expressions formed by binary operators with priority 2
 -}
@@ -197,15 +200,6 @@ expression7 annp
             = text "*" *> (Multiplication <$> annp)
             <|> text "/" *> (Division <$> annp)
 
-{-| Identifier can refer to a variable when by itself,
-a function name when followed by a list of arguments in parentheses,
-or an array when followed by square brackets.
-It is also possible to access multi-dimensional arrays,
-or even call item of an array that was returned by a function. -}
-callOrUse :: ann -> Identifier -> [Expression ann -> Expression ann] -> Expression ann
-callOrUse ann name actions = foldl (\expr action -> action expr) (Variable ann name) actions
-
-
 {-| Atomic expressions and unary operator -}
 atom :: Parser ann -> Parser (Expression ann)
 atom annp
@@ -215,9 +209,20 @@ atom annp
     <|> Boolean <$> annp <*> bool
     <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'')
     <|> String <$> annp <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"')))
-    <|> callOrUse <$> annp <*> identifier <*> many (callArgs annp <|> arrayAccessor annp)
+    <|> lvalue annp
 
+{-| Parse a lvalue, an expression that can be assigned to. -}
+lvalue :: Parser ann -> Parser (Expression ann)
+lvalue annp = callOrUse <$> annp <*> identifier <*> many (callArgs annp <|> arrayAccessor annp)
+
+{-| Identifier can refer to a variable when by itself,
+a function name when followed by a list of arguments in parentheses,
+or an array when followed by square brackets.
+It is also possible to access multi-dimensional arrays,
+or even call item of an array that was returned by a function. -}
+callOrUse :: ann -> Identifier -> [Expression ann -> Expression ann] -> Expression ann
+callOrUse ann name actions = foldl (\expr action -> action expr) (Variable ann name) actions
 
 callArgs, arrayAccessor :: Parser ann -> Parser (Expression ann -> Expression ann)
-callArgs annp = flip . Call <$> annp <*> (text "(" *> (expression annp `sepBy` text ",") <* text ")")
-arrayAccessor annp = flip . ArrayAccess <$> annp <*> (text "[" *> expression annp <* text "]")
+callArgs annp = flip . Call <$> annp <*> (text "(" *> (expression annp `sepBy` text ",") <* text ")") <?> "function arguments"
+arrayAccessor annp = flip . ArrayAccess <$> annp <*> (text "[" *> expression annp <* text "]") <?> "array accessor"

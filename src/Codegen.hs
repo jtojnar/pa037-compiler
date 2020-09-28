@@ -103,8 +103,8 @@ makeCallArgs args = zip args (repeat [])
 {-| Call a function represented by an expression. -}
 call_ :: Expression (ann, Ast.Type) -> [Expression (ann, Ast.Type)] -> Codegen Operand
 call_ callee args = do
-    args' <- mapM exprCodegen args
-    callee' <- exprCodegen callee
+    args' <- mapM (exprCodegen Rval) args
+    callee' <- exprCodegen Rval callee -- TODO: possibly should be lval
     call callee' (makeCallArgs args')
 
 {-| Allocate memory on a stack for given type.
@@ -114,7 +114,7 @@ but not recursively – only one dimensional arrays can be currently allocated. 
 alloca_ :: Ast.Type -> Word32 -> Codegen Operand
 alloca_ (TArray (Number _ size) ty) = alloca (codegenType ty) (Just (ConstantOperand (C.Int 32 (fromIntegral size))))
 alloca_ (TArray sizeExpr ty) = \alignment -> do
-    size <- exprCodegen (mapExpressionAnn (, TBot) sizeExpr) -- TODO: include annotations in Type
+    size <- exprCodegen Rval (mapExpressionAnn (, TBot) sizeExpr) -- TODO: include annotations in Type
     alloca (codegenType ty) (Just size) alignment
 alloca_ ty = alloca (codegenType ty) Nothing -- single element
 
@@ -147,87 +147,91 @@ emitIsNotEqual TNil = \_ _ -> return false -- Nil tuples are all the same.
 emitIsNotEqual (TPtr _) = icmp IntegerPredicate.NE
 emitIsNotEqual (TArray _ _) = icmp IntegerPredicate.NE
 
-exprCodegen :: Expression (ann, Ast.Type) -> Codegen Operand
-exprCodegen (Addition ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+data ValueKind = Lval | Rval deriving (Eq, Show)
+
+exprCodegen :: ValueKind -> Expression (ann, Ast.Type) -> Codegen Operand
+exprCodegen vk (Addition ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     add lhs' rhs'
-exprCodegen (Subtraction ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Subtraction ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     sub lhs' rhs'
-exprCodegen (Multiplication ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Multiplication ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     mul lhs' rhs'
-exprCodegen (Division ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Division ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     sdiv lhs' rhs'
-exprCodegen (Conjunction ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Conjunction ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     Instr.and lhs' rhs'
-exprCodegen (Disjunction ann lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Disjunction ann lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     Instr.or lhs' rhs'
-exprCodegen (Negation ann expr) = do
-    expr' <- exprCodegen expr
+exprCodegen vk (Negation ann expr) = do
+    expr' <- exprCodegen vk expr
     xor expr' true
-exprCodegen (Equality (_ann, ty) lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Equality (_ann, ty) lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     emitIsEqual ty lhs' rhs'
-exprCodegen (Inequality (_ann, ty) lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Inequality (_ann, ty) lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     emitIsNotEqual ty lhs' rhs'
-exprCodegen (LessThan ty lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (LessThan ty lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     icmp IntegerPredicate.SLT lhs' rhs'
-exprCodegen (LessThanEqual ty lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (LessThanEqual ty lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     icmp IntegerPredicate.SLE lhs' rhs'
-exprCodegen (Greater ty lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (Greater ty lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     icmp IntegerPredicate.SGT lhs' rhs'
-exprCodegen (GreaterThanEqual ty lhs rhs) = do
-    lhs' <- exprCodegen lhs
-    rhs' <- exprCodegen rhs
+exprCodegen vk (GreaterThanEqual ty lhs rhs) = do
+    lhs' <- exprCodegen vk lhs
+    rhs' <- exprCodegen vk rhs
     icmp IntegerPredicate.SGE lhs' rhs'
-exprCodegen (Number ann n) = return $ BC.int32 (toInteger n)
-exprCodegen (Boolean ann True) = return $ BC.bit 1
-exprCodegen (Boolean ann False) = return $ BC.bit 0
-exprCodegen (Character ann char) = return $ BC.int8 (toInteger (ord char))
-exprCodegen (String ann text) = do
+exprCodegen vk (Number ann n) = return $ BC.int32 (toInteger n)
+exprCodegen vk (Boolean ann True) = return $ BC.bit 1
+exprCodegen vk (Boolean ann False) = return $ BC.bit 0
+exprCodegen vk (Character ann char) = return $ BC.int8 (toInteger (ord char))
+exprCodegen vk (String ann text) = do
     -- Let’s create a new global constant and return an its address.
     name <- identifierToName <$> freshName_ ".str"
     constant <- globalStringPtr (T.unpack text) name
     return $ ConstantOperand constant
-exprCodegen (Variable ann name) = do
+exprCodegen vk (Variable ann name) = do
     mLocalPointer <- getvar name -- Obtain a pointer to memory location of the locally allocated variable.
     case mLocalPointer of
         Just localPointer -> do
-            let alignment = 0 -- default alignment
-            load localPointer alignment -- Return the register with the value of the variable.
+            case vk of
+                Rval -> load localPointer defaultAlignment -- Return the register with the value of the variable.
+                Lval -> return localPointer
         Nothing -> do
             gs <- gets globals
             case lookup name gs of
                 Nothing -> error $ "Variable not in scope: " ++ show name
                 Just ty -> return (ConstantOperand $ C.GlobalReference (codegenType ty) (identifierToName name))
 
-exprCodegen (Ast.Call ann callee args) = do
+exprCodegen vk (Ast.Call ann callee args) = do
     call_ callee args
-exprCodegen (Ast.ArrayAccess ann array index) = do
-    array' <- exprCodegen array
-    index' <- exprCodegen index
+exprCodegen vk (Ast.ArrayAccess ann array index) = do
+    array' <- exprCodegen vk array
+    index' <- exprCodegen vk index
     indexedValue <- gep array' [index']
-    let alignment = 0 -- default alignment
-    load indexedValue alignment
+    case vk of
+        Rval -> load indexedValue defaultAlignment
+        Lval -> return indexedValue
 
 
 -- FIXME: handle commands dependently
@@ -256,7 +260,7 @@ commandCodegen (Conditional ann ifBranches melse) = mdo
     codegenBranch :: Expression (ann, Ast.Type) -> Commands (ann, Ast.Type) -> Name -> Name -> Codegen Name
     codegenBranch cond ifBranch done ifFalse = mdo
         condBlock <- freshBlock "condBlock"
-        cond' <- exprCodegen cond
+        cond' <- exprCodegen Rval cond
         condBr cond' ifTrue ifFalse
         ifTrue <- freshBlock "ifTrue"
         commandsCodegen ifBranch
@@ -280,7 +284,7 @@ commandCodegen (Conditional ann ifBranches melse) = mdo
 commandCodegen (While ann cond body) = mdo
     br condBlock
     condBlock <- freshBlock "condBlock"
-    cond' <- exprCodegen cond
+    cond' <- exprCodegen Rval cond
     condBr cond' bodyBlock done
     bodyBlock <- freshBlock "bodyBlock"
     commandsCodegen body
@@ -289,22 +293,20 @@ commandCodegen (While ann cond body) = mdo
     done <- freshBlock "done"
     return ()
 commandCodegen (Return ann expr) = do
-    result <- exprCodegen expr
+    result <- exprCodegen Rval expr
     ret result
 commandCodegen (Declaration ann name ty (Just expr)) = do
-    val <- exprCodegen expr
+    val <- exprCodegen Rval expr
     var <- alloca_ ty defaultAlignment
-    store var 0 val -- default alignment
+    store var defaultAlignment val
     assign (T.unpack name) var
 commandCodegen (Declaration ann name ty Nothing) = do
     var <- alloca_ ty defaultAlignment
     assign (T.unpack name) var
-commandCodegen (Assignment ann name expr) = do
-    val <- exprCodegen expr
-    var <- getvar name
-    case var of
-        Nothing -> error $ "Variable not in scope: " ++ show name
-        Just var' -> store var' 0 val -- default alignment
+commandCodegen (Assignment ann lhs rhs) = do
+    rhs' <- exprCodegen Rval rhs
+    lhs' <- exprCodegen Lval lhs
+    store lhs' defaultAlignment rhs'
 commandCodegen (CCall ann callee args) = do
     call_ callee args
     return ()

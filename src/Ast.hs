@@ -115,6 +115,6 @@ data Command ann
     | While { commandAnn :: ann, commandLoopCond :: Expression ann, commandBody :: Commands ann }
     | Return { commandAnn :: ann, commandReturnVal :: Expression ann }
     | Declaration { commandAnn :: ann, commandVarName :: Identifier, commandVarType :: Type, commandOptAssignment :: Maybe (Expression ann) }
-    | Assignment { commandAnn :: ann, commandVarName :: Identifier, commandVarValue :: Expression ann }
+    | Assignment { commandAnn :: ann, commandAssignLhs :: Expression ann, commandAssignRhs :: Expression ann }
     | CCall { commandAnn :: ann, commandCallable :: Expression ann, commandCallArgs :: [Expression ann] }
     deriving (Eq, Show)
