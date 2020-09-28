@@ -91,6 +91,28 @@ mapExpressionAnn f (Variable ann n) = Variable (f ann) n
 mapExpressionAnn f (Call ann e args) = Call (f ann) (mapExpressionAnn f e) (map (mapExpressionAnn f) args)
 mapExpressionAnn f (ArrayAccess ann e i) = ArrayAccess (f ann) (mapExpressionAnn f e) (mapExpressionAnn f i)
 
+expressionFixity :: Expression ann -> Int
+expressionFixity (Addition ann l r) = 6
+expressionFixity (Subtraction ann l r) = 6
+expressionFixity (Multiplication ann l r) = 7
+expressionFixity (Division ann l r) = 7
+expressionFixity (Conjunction ann l r) = 3
+expressionFixity (Disjunction ann l r) = 1
+expressionFixity (Equality ann l r) = 4
+expressionFixity (Inequality ann l r) = 4
+expressionFixity (LessThan ann l r) = 4
+expressionFixity (LessThanEqual ann l r) = 4
+expressionFixity (Greater ann l r) = 4
+expressionFixity (GreaterThanEqual ann l r) = 4
+expressionFixity (Number ann val) = 9
+expressionFixity (Boolean ann True) = 9
+expressionFixity (Boolean ann False) = 9
+expressionFixity (Character ann val) = 9
+expressionFixity (String ann val) = 9
+expressionFixity (Variable ann name) = 9
+expressionFixity (Call ann callee args) = 9
+expressionFixity (ArrayAccess ann array index) = 9
+
 type Identifier = Text
 
 type Program ann = [(Identifier, FunctionDefinition ann)]

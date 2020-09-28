@@ -10,26 +10,31 @@ import Helpers
 
 default (Text)
 
-ppExpr (Addition ann l r) = ppExpr l <> " + " <> ppExpr r
-ppExpr (Subtraction ann l r) = ppExpr l <> " - " <> ppExpr r
-ppExpr (Multiplication ann l r) = ppExpr l <> " * " <> ppExpr r
-ppExpr (Division ann l r) = ppExpr l <> " / " <> ppExpr r
-ppExpr (Conjunction ann l r) = ppExpr l <> " && " <> ppExpr r
-ppExpr (Disjunction ann l r) = ppExpr l <> " || " <> ppExpr r
-ppExpr (Equality ann l r) = ppExpr l <> " == " <> ppExpr r
-ppExpr (Inequality ann l r) = ppExpr l <> " != " <> ppExpr r
-ppExpr (LessThan ann l r) = ppExpr l <> " < " <> ppExpr r
-ppExpr (LessThanEqual ann l r) = ppExpr l <> " <= " <> ppExpr r
-ppExpr (Greater ann l r) = ppExpr l <> " > " <> ppExpr r
-ppExpr (GreaterThanEqual ann l r) = ppExpr l <> " >= " <> ppExpr r
-ppExpr (Number ann val) = tshow val
-ppExpr (Boolean ann True) = "true"
-ppExpr (Boolean ann False) = "false"
-ppExpr (Character ann val) = "'" <> T.pack [val] <> "'"
-ppExpr (String ann val) = "\"" <> val <> "\""
-ppExpr (Variable ann name) = name
-ppExpr (Call ann callee args) = ppExpr callee <> "(" <> (T.intercalate ", " (map ppExpr args)) <> ")"
-ppExpr (ArrayAccess ann array index) = ppExpr array <> "[" <> ppExpr index <> "]"
+{- Pretty print a correctly parenthesized expression. -}
+ppExpr = ppExpr' 0
+
+parenthesize outer inner expr = if outer > inner then "(" <> expr <> ")" else expr
+
+ppExpr' fixity expr@(Addition ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " + " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Subtraction ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " - " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Multiplication ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " * " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Division ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " / " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Conjunction ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " && " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Disjunction ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " || " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Equality ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " == " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Inequality ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " != " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(LessThan ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " < " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(LessThanEqual ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " <= " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Greater ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " > " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(GreaterThanEqual ann l r) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) l <> " >= " <> ppExpr' (expressionFixity expr) r
+ppExpr' fixity expr@(Number ann val) = parenthesize fixity (expressionFixity expr) $ tshow val
+ppExpr' fixity expr@(Boolean ann True) = parenthesize fixity (expressionFixity expr) $ "true"
+ppExpr' fixity expr@(Boolean ann False) = parenthesize fixity (expressionFixity expr) $ "false"
+ppExpr' fixity expr@(Character ann val) = parenthesize fixity (expressionFixity expr) $ "'" <> T.pack [val] <> "'"
+ppExpr' fixity expr@(String ann val) = parenthesize fixity (expressionFixity expr) $ "\"" <> val <> "\""
+ppExpr' fixity expr@(Variable ann name) = parenthesize fixity (expressionFixity expr) $ name
+ppExpr' fixity expr@(Call ann callee args) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) callee <> "(" <> (T.intercalate ", " (map (ppExpr' (expressionFixity expr)) args)) <> ")"
+ppExpr' fixity expr@(ArrayAccess ann array index) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) array <> "[" <> ppExpr' (expressionFixity expr) index <> "]"
 
 ppType :: Type -> Text
 ppType TBot = "⊥"
