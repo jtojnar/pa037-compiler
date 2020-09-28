@@ -13,7 +13,8 @@ import Control.Monad.State hiding (void)
 import Data.Char (ord)
 import Data.String (fromString)
 import Data.Functor.Identity (runIdentity)
-import Data.List (zip4)
+import Data.List (find, zip4)
+import Data.Maybe (isJust)
 import qualified Data.Map as Map
 import Data.Text.Lazy.IO as T
 import Data.Word (Word32)
@@ -35,7 +36,9 @@ import LLVM.IRBuilder.Instruction as Instr
 
 data CodegenState = CodegenState {
     -- Pairs variable name with a type and a Value representing a pointer to the stack.
-    symbolTable :: [(String, (Ast.Type, Operand))],
+    -- Each lexical block has its own symbol table and can access symbols defined in parent scopes if not shadowed.
+    -- Top to bottom ~ left to right.
+    symbolTables :: [[(String, (Ast.Type, Operand))]],
     -- Describes types of global variables.
     -- TODO: This is immutable so it should not really be a part of the state (move to Reader).
     globals :: [(Identifier, Ast.Type)],
@@ -54,22 +57,38 @@ type Modulegen = ModuleBuilderT CodegenInner
 type Codegen = IRBuilderT Modulegen
 
 emptyCodegenState = CodegenState {
-    symbolTable = [],
+    symbolTables = [[]],
     globals = [],
     names = Map.empty
 }
 
--- lifted from sdiehl/kaleidoscope
+{-| Register a variable into a symbol table for current block. -}
 assign :: String -> Ast.Type -> Operand -> Codegen ()
 assign name ty register = do
-    table <- gets symbolTable
-    modify $ \s -> s { symbolTable = [(name, (ty, register))] ++ table }
+    modify $ \s -> s {
+        symbolTables =
+            let
+                topFrame : rest = symbolTables s
+            in
+                ((name, (ty, register)) : topFrame) : rest
+    }
 
--- lifted from sdiehl/kaleidoscope
+{-| Get a Value representing the stack memory location where given variable is stored.
+Descend down the stack of local block scopes when not found in the top level one. -}
 getvar :: Identifier -> Codegen (Maybe (Ast.Type, Operand))
 getvar var = do
-    syms <- gets symbolTable
-    return (lookup (T.unpack var) syms)
+    syms <- gets symbolTables
+    return (join (find isJust (map (lookup (T.unpack var)) syms)))
+
+{-| Create a new symbol table for the current block and add it to the stack. -}
+enterBlock :: Codegen ()
+enterBlock = do
+    modify $ \s -> s { symbolTables = [] : symbolTables s }
+
+{-| Remove the symbol table for the current block from the stack. -}
+exitBlock :: Codegen ()
+exitBlock = do
+    modify $ \s -> s { symbolTables = tail (symbolTables s) }
 
 -- lifted from sdiehl/kaleidoscope
 uniqueName :: Identifier -> Names -> (Identifier, Names)
@@ -243,7 +262,10 @@ exprCodegen vk (Ast.AddressOf ann e) = exprCodegen Lval e
 -- FIXME: handle commands dependently
 {-| Generate code for sequence of commands. -}
 commandsCodegen :: [Command (ann, Ast.Type)] -> Codegen ()
-commandsCodegen commands = mapM_ commandCodegen commands
+commandsCodegen commands = do
+    enterBlock
+    mapM_ commandCodegen commands
+    exitBlock
 
 {-| Generate a code for a single command. -}
 commandCodegen :: Command (ann, Ast.Type) -> Codegen ()
