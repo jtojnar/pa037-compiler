@@ -271,8 +271,8 @@ commandsCodegen commands = do
 commandCodegen :: Command (ann, Ast.Type) -> Codegen ()
 commandCodegen (Conditional ann ifBranches melse) = mdo
     br condBlock
-    condBlock <- codegenBranches done ifBranches
-    ifFalse <- case melse of
+    condBlock <- codegenBranches done finalBlock ifBranches
+    finalBlock <- case melse of
         Just elseBranch -> do
             ifFalse <- freshBlock "ifFalse"
             commandsCodegen elseBranch
@@ -301,11 +301,11 @@ commandCodegen (Conditional ann ifBranches melse) = mdo
     -- using MonadFix to route the block containing the condition to the branch instruction
     -- of the preceding branch.
     -- TODO: Figure out why we cannot just use mfix with mapM. Not lazy enough?
-    codegenBranches :: Name -> [(Expression (ann, Ast.Type), Commands (ann, Ast.Type))] -> Codegen Name
-    codegenBranches done [(cond, branch)] = codegenBranch cond branch done done
-    codegenBranches done ((cond, branch):restBranches) = mdo
+    codegenBranches :: Name -> Name -> [(Expression (ann, Ast.Type), Commands (ann, Ast.Type))] -> Codegen Name
+    codegenBranches done finalBlock [(cond, branch)] = codegenBranch cond branch done finalBlock
+    codegenBranches done finalBlock ((cond, branch):restBranches) = mdo
         condBlock <- codegenBranch cond branch done nextCondBlock
-        nextCondBlock <- codegenBranches done restBranches
+        nextCondBlock <- codegenBranches done finalBlock restBranches
         return condBlock
 -- commandCodegen (ForEach ann item collection body) = mdo
 -- FIXME: implement foreach
