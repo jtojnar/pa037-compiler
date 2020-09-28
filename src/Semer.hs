@@ -318,6 +318,7 @@ typeOf context (ArrayAccess ann array index) =
 
         indexTypeErrors = case semType index' of
             TInt32 -> []
+            TChar -> []
             ty ->
                 [SemanticError [ann] ("‘" <> ppExpr index <> "’ is not an integer so it cannot be an index.")]
 
