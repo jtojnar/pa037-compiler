@@ -4,7 +4,7 @@
 module Parser (Pos(..), command, program, expression, pos) where
 
 import Ast
-import Control.Applicative ((<|>), optional, some, many)
+import Control.Applicative ((<|>), liftA2, optional, some, many)
 import Data.Char (isDigit, ord)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
@@ -119,14 +119,21 @@ commands annp = many (command annp)
 block :: Parser ann -> Parser (Commands ann)
 block annp = text "{" *> commands annp <* text "}"
 
+infixl 4 <*.*>
+(<*.*>) :: Applicative f => f (a -> b -> c) -> f (a, b) -> f c
+(<*.*>) = liftA2 uncurry
+
 command :: Parser ann -> Parser (Command ann)
 command annp
     = (Conditional <$> annp <*> ((:) <$> ((,) <$> (text "if" *> expression annp) <*> block annp) <*> many ((,) <$> (text "elseif" *> expression annp) <*> block annp)) <*> optional (text "else" *> block annp) <?> "conditional statement")
     <|> (ForEach <$> annp <*> (text "for" *> identifier) <*> (text "in" *> expression annp) <*> block annp <?> "for..in loop")
     <|> (While <$> annp <*> (text "while" *> expression annp) <*> block annp <?> "while loop")
     <|> (Return <$> annp <*> (text "return" *> expression annp) <* text ";" <?> "return statement")
-    <|> (Declaration <$> annp <*> (text "let" *> identifier) <*> (text ":" *> typeVal) <*> (optional (text "=" *> expression annp)) <* text ";" <?> "declaration")
+    <|> (Declaration <$> annp <*> (text "let" *> identifier) <*.*> (((,) <$> (text ":" *> typeVal) <*> optional (assignRight annp)) <|> ((,) <$> pure TBot <*> (Just <$> assignRight annp))) <* text ";" <?> "declaration")
     <|> callOrAssign annp
+
+assignRight :: Parser ann -> Parser (Expression ann)
+assignRight annp = text "=" *> expression annp
 
 {-| Command starting with an identifier can be either assignment or a function call.
 We have to decide based no whether there is an equal sign so we need to use monadic parser. -}

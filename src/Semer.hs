@@ -139,19 +139,24 @@ typeCheckCommand context (Return ann expr) =
     in
         (errors, Return (ann, TNil) expr', context')
 typeCheckCommand context (Declaration ann name ty mexpr) =
-    let
-        context' = contextBindName name ty context
-    in
-        case mexpr of
-            Just expr ->
-                let
-                    (exprErrors, expr') = typeOf context expr
-                    texpr = semType expr'
-                    mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
-                    errors = exprErrors ++ mismatchErrors
-                in
-                    (errors, Declaration (ann, TNil) name ty (Just expr'), context')
-            Nothing -> ([], Declaration (ann, TNil) name ty Nothing, context')
+    case mexpr of
+        Just expr ->
+            let
+                (exprErrors, expr') = typeOf context expr
+                texpr = semType expr'
+                mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
+                errors = exprErrors ++ mismatchErrors
+                ty' = case ty of
+                    TBot -> texpr -- Type omitted and inferred from value type
+                    ty -> ty
+                context' = contextBindName name ty' context
+            in
+                (errors, Declaration (ann, TNil) name ty' (Just expr'), context')
+        Nothing ->
+            let
+                context' = contextBindName name ty context
+            in
+                ([], Declaration (ann, TNil) name ty Nothing, context')
 typeCheckCommand context (Assignment ann lhs rhs) =
     let
         (scopeErrors, lhs') = typeOf context lhs
