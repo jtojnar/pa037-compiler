@@ -39,6 +39,24 @@ spec = do
                             ) [Variable () "qux", Number () 5])
                         )
 
+            describe "String literals" $ do
+                it "should allow spaces around them" $ do
+                    parseMaybe (expression nilAnnp) "( \"bar\"\t)" `shouldBe`
+                        (Just $ String () "bar")
+
+                it "should preserve spaces inside them" $ do
+                    parseMaybe (expression nilAnnp) "\"\tbar \"" `shouldBe`
+                        (Just $ String () "\tbar ")
+
+            describe "Char literals" $ do
+                it "should allow spaces around them" $ do
+                    parseMaybe (expression nilAnnp) "( 'r'\t)" `shouldBe`
+                        (Just $ Character () 'r')
+
+                it "should only allow a single character except for escapes" $ do
+                    parseMaybe (expression nilAnnp) "' x '" `shouldBe` Nothing
+                    parseMaybe (expression nilAnnp) "'\\n'" `shouldBe` (Just $ Character () '\n')
+
 
             describe "Subtraction" $ do
                 it "should associate from left" $ do

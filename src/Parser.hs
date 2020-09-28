@@ -63,6 +63,8 @@ chainl1 p op = p >>= rest
 word :: Parser Text
 word  = T.pack <$> some (alphaNumChar <|> char '_') <* skipSpace
 
+{-| Parse a “lexeme”. Throughout our parser each parser is responsible
+for consuming the space that follows it, this function makes it almost a  -}
 text :: Text -> Parser Text
 text s = string s <* skipSpace
 
@@ -88,10 +90,10 @@ typeVal :: Parser Type
 typeVal
     = ((pure TInt32 <* text "i32"
     <|> pure TChar <* text "char"
-    <|> pure parenthisedTypes <*> (text "(" *> (typeVal `sepBy` text ",") <* ")")
+    <|> pure parenthisedTypes <*> (text "(" *> (typeVal `sepBy` text ",") <* text ")")
     <|> pure TPtr <* text "ptr" <*> typeVal
     <|> flip TArray <$> (text "[" *> typeVal <* text ";") <*> (expression (return ()) <* text "]") -- TODO: wire in annotations
-    <|> pure TBool <* text "bool") <?> "type") <* skipSpace
+    <|> pure TBool <* text "bool") <?> "type")
 
 program :: Parser ann -> Parser (Program ann)
 program annp = skipSpace *> many ((funDef annp <|> extern annp)) <* endOfInput
@@ -207,8 +209,8 @@ atom annp
     <|> Negation <$> annp <*> (text "!" *> atom annp)
     <|> Number <$> annp <*> int
     <|> Boolean <$> annp <*> bool
-    <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'')
-    <|> String <$> annp <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"')))
+    <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'') <* skipSpace -- We are not using @text@ parser so we need to skip the following whitespace manually.
+    <|> String <$> annp <*> (char '"' *> (T.pack <$> manyTill charLiteral (char '"'))) <* skipSpace
     <|> lvalue annp
 
 {-| Parse a lvalue, an expression that can be assigned to. -}
