@@ -13,6 +13,7 @@ import Control.Monad.State hiding (void)
 import Data.Char (ord)
 import Data.String (fromString)
 import Data.Functor.Identity (runIdentity)
+import Data.List (zip4)
 import qualified Data.Map as Map
 import Data.Text.Lazy.IO as T
 import Data.Word (Word32)
@@ -33,8 +34,8 @@ import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Instruction as Instr
 
 data CodegenState = CodegenState {
-    -- Pairs variable name with a Value representing a pointer to the stack.
-    symbolTable :: [(String, Operand)],
+    -- Pairs variable name with a type and a Value representing a pointer to the stack.
+    symbolTable :: [(String, (Ast.Type, Operand))],
     -- Describes types of global variables.
     -- TODO: This is immutable so it should not really be a part of the state (move to Reader).
     globals :: [(Identifier, Ast.Type)],
@@ -59,13 +60,13 @@ emptyCodegenState = CodegenState {
 }
 
 -- lifted from sdiehl/kaleidoscope
-assign :: String -> Operand -> Codegen ()
-assign name register = do
+assign :: String -> Ast.Type -> Operand -> Codegen ()
+assign name ty register = do
     table <- gets symbolTable
-    modify $ \s -> s { symbolTable = [(name, register)] ++ table }
+    modify $ \s -> s { symbolTable = [(name, (ty, register))] ++ table }
 
 -- lifted from sdiehl/kaleidoscope
-getvar :: Identifier -> Codegen (Maybe Operand)
+getvar :: Identifier -> Codegen (Maybe (Ast.Type, Operand))
 getvar var = do
     syms <- gets symbolTable
     return (lookup (T.unpack var) syms)
@@ -109,13 +110,13 @@ call_ callee args = do
 
 {-| Allocate memory on a stack for given type.
 When the type is a pointer, we will only allocate a cell of pointer size.
-When the type is an array, we will allocate a cell for all `size` items
+When the type is an array, we will allocate a cell for all `numElements` items
 but not recursively – only one dimensional arrays can be currently allocated. -}
 alloca_ :: Ast.Type -> Word32 -> Codegen Operand
-alloca_ (TArray (Number _ size) ty) = alloca (codegenType ty) (Just (ConstantOperand (C.Int 32 (fromIntegral size))))
-alloca_ (TArray sizeExpr ty) = \alignment -> do
-    size <- exprCodegen Rval (mapExpressionAnn (, TBot) sizeExpr) -- TODO: include annotations in Type
-    alloca (codegenType ty) (Just size) alignment
+alloca_ arr@(TArray (Number _ numElements) ty) = alloca (codegenType ty) (Just (ConstantOperand (C.Int 32 (fromIntegral numElements))))
+alloca_ arr@(TArray numElementsExpr ty) = \alignment -> do
+    numElements <- exprCodegen Rval (mapExpressionAnn (, TBot) numElementsExpr) -- TODO: include annotations in Type
+    alloca (codegenType ty) (Just numElements) alignment
 alloca_ ty = alloca (codegenType ty) Nothing -- single element
 
 {-| Generate a Value representing constant True. -}
@@ -151,55 +152,55 @@ data ValueKind = Lval | Rval deriving (Eq, Show)
 
 exprCodegen :: ValueKind -> Expression (ann, Ast.Type) -> Codegen Operand
 exprCodegen vk (Addition ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     add lhs' rhs'
 exprCodegen vk (Subtraction ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     sub lhs' rhs'
 exprCodegen vk (Multiplication ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     mul lhs' rhs'
 exprCodegen vk (Division ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     sdiv lhs' rhs'
 exprCodegen vk (Conjunction ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     Instr.and lhs' rhs'
 exprCodegen vk (Disjunction ann lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     Instr.or lhs' rhs'
 exprCodegen vk (Negation ann expr) = do
-    expr' <- exprCodegen vk expr
+    expr' <- exprCodegen Rval expr
     xor expr' true
 exprCodegen vk (Equality (_ann, ty) lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     emitIsEqual ty lhs' rhs'
 exprCodegen vk (Inequality (_ann, ty) lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     emitIsNotEqual ty lhs' rhs'
 exprCodegen vk (LessThan ty lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     icmp IntegerPredicate.SLT lhs' rhs'
 exprCodegen vk (LessThanEqual ty lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     icmp IntegerPredicate.SLE lhs' rhs'
 exprCodegen vk (Greater ty lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     icmp IntegerPredicate.SGT lhs' rhs'
 exprCodegen vk (GreaterThanEqual ty lhs rhs) = do
-    lhs' <- exprCodegen vk lhs
-    rhs' <- exprCodegen vk rhs
+    lhs' <- exprCodegen Rval lhs
+    rhs' <- exprCodegen Rval rhs
     icmp IntegerPredicate.SGE lhs' rhs'
 exprCodegen vk (Number ann n) = return $ BC.int32 (toInteger n)
 exprCodegen vk (Boolean ann True) = return $ BC.bit 1
@@ -211,12 +212,16 @@ exprCodegen vk (String ann text) = do
     constant <- globalStringPtr (T.unpack text) name
     return $ ConstantOperand constant
 exprCodegen vk (Variable ann name) = do
-    mLocalPointer <- getvar name -- Obtain a pointer to memory location of the locally allocated variable.
-    case mLocalPointer of
-        Just localPointer -> do
-            case vk of
-                Rval -> load localPointer defaultAlignment -- Return the register with the value of the variable.
-                Lval -> return localPointer
+    mvar <- getvar name -- Obtain a pointer to memory location of the locally allocated variable.
+    case mvar of
+        Just (ty, localPointer) -> do
+            case (vk, ty) of
+                -- If a stored value is an array or a pointer, return it as value.
+                (_, TArray _ _) -> return localPointer
+                -- Similarly, return the pointer when we are trying to write to it.
+                (Lval, _) -> return localPointer
+                -- Only when we are trying to read it, return a register with the value of the variable.
+                (Rval, _) -> load localPointer defaultAlignment
         Nothing -> do
             gs <- gets globals
             case lookup name gs of
@@ -226,8 +231,8 @@ exprCodegen vk (Variable ann name) = do
 exprCodegen vk (Ast.Call ann callee args) = do
     call_ callee args
 exprCodegen vk (Ast.ArrayAccess ann array index) = do
-    array' <- exprCodegen vk array
-    index' <- exprCodegen vk index
+    array' <- exprCodegen Rval array -- Array is already a pointer so no need to use it as lval.
+    index' <- exprCodegen Rval index
     indexedValue <- gep array' [index']
     case vk of
         Rval -> load indexedValue defaultAlignment
@@ -299,13 +304,13 @@ commandCodegen (Declaration ann name ty (Just expr)) = do
     val <- exprCodegen Rval expr
     var <- alloca_ ty defaultAlignment
     store var defaultAlignment val
-    assign (T.unpack name) var
+    assign (T.unpack name) ty var
 commandCodegen (Declaration ann name ty Nothing) = do
     var <- alloca_ ty defaultAlignment
-    assign (T.unpack name) var
+    assign (T.unpack name) ty var
 commandCodegen (Assignment ann lhs rhs) = do
-    rhs' <- exprCodegen Rval rhs
     lhs' <- exprCodegen Lval lhs
+    rhs' <- exprCodegen Rval rhs
     store lhs' defaultAlignment rhs'
 commandCodegen (CCall ann callee args) = do
     call_ callee args
@@ -348,13 +353,14 @@ codegenFunctionDefinition (name, FunctionDefinition _endAnn args resultType vari
                     args'
                     resultType'
                     (\argOperands -> do
-                        let argTypes = map fst args'
+                        let argTypes = map snd args
+                        let argTypes' = map fst args'
                         let argNames = map (T.unpack . fst) args
                         freshBlock "entry"
-                        forM (zip3 argNames argTypes argOperands) $ \(name, ty, register) -> do
-                            var <- alloca ty Nothing defaultAlignment
+                        forM (zip4 argNames argTypes argTypes' argOperands) $ \(name, ty, ty', register) -> do
+                            var <- alloca ty' Nothing defaultAlignment
                             store var defaultAlignment register
-                            assign name var
+                            assign name ty var
                         commandsCodegen commands
                     )
 

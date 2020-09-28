@@ -21,6 +21,7 @@ The compiler uses `llc` to convert the generated LLVM IR to assembly, and then C
 * https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl01.html
 * https://github.com/sdiehl/kaleidoscope/tree/master/src/chapter7
 * https://llvm.org/docs/LangRef.html#functions
+* https://llvm.org/docs/GetElementPtr.html
 * https://hackage.haskell.org/package/llvm-hs
 * https://hackage.haskell.org/package/megaparsec
 * https://mmhaskell.com/blog/2018/2/26/attoparsec-the-clarity-of-do-syntax
