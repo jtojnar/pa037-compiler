@@ -323,6 +323,7 @@ typeOf context (ArrayAccess ann array index) =
 
         (accessErrors, resultType) = case semType array' of
             TPtr ty -> ([], ty)
+            TArray _size ty -> ([], ty)
             ty ->
                 let
                     exprOrName =
