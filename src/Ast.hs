@@ -9,6 +9,7 @@ data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | TArray (Expressio
 
 isNumericType :: Type -> Bool
 isNumericType TInt32 = True
+isNumericType TChar = True
 isNumericType _ = False
 
 isBooleanType :: Type -> Bool
