@@ -237,6 +237,7 @@ exprCodegen vk (Ast.ArrayAccess ann array index) = do
     case vk of
         Rval -> load indexedValue defaultAlignment
         Lval -> return indexedValue
+exprCodegen vk (Ast.AddressOf ann e) = exprCodegen Lval e
 
 
 -- FIXME: handle commands dependently

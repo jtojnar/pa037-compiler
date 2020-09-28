@@ -207,6 +207,7 @@ atom :: Parser ann -> Parser (Expression ann)
 atom annp
     = text "(" *> expression annp <* text ")"
     <|> Negation <$> annp <*> (text "!" *> atom annp)
+    <|> AddressOf <$> annp <*> (text "&" *> atom annp)
     <|> Number <$> annp <*> int
     <|> Boolean <$> annp <*> bool
     <|> Character <$> annp <*> (char '\'' *> charLiteral <* char '\'') <* skipSpace -- We are not using @text@ parser so we need to skip the following whitespace manually.

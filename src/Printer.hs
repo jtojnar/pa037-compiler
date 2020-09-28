@@ -35,6 +35,7 @@ ppExpr' fixity expr@(String ann val) = parenthesize fixity (expressionFixity exp
 ppExpr' fixity expr@(Variable ann name) = parenthesize fixity (expressionFixity expr) $ name
 ppExpr' fixity expr@(Call ann callee args) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) callee <> "(" <> (T.intercalate ", " (map (ppExpr' (expressionFixity expr)) args)) <> ")"
 ppExpr' fixity expr@(ArrayAccess ann array index) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) array <> "[" <> ppExpr' (expressionFixity expr) index <> "]"
+ppExpr' fixity expr@(AddressOf ann e) = parenthesize fixity (expressionFixity expr) $ "&" <> ppExpr' (expressionFixity expr) e
 
 ppType :: Type -> Text
 ppType TBot = "⊥"

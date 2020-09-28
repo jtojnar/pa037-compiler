@@ -67,6 +67,7 @@ data Expression ann
     | Variable { expressionAnn :: ann, expressionVarName :: Identifier }
     | Call { expressionAnn :: ann, expressionCallee :: Expression ann, expressionArgs :: [Expression ann] }
     | ArrayAccess { expressionAnn :: ann, expressionIndexable :: Expression ann, expressionIndex :: Expression ann }
+    | AddressOf { expressionAnn :: ann, expressionInner :: Expression ann }
     deriving (Eq, Show)
 
 mapExpressionAnn :: (ann -> ann') -> Expression ann -> Expression ann'
@@ -90,6 +91,7 @@ mapExpressionAnn f (String ann v) = String (f ann) v
 mapExpressionAnn f (Variable ann n) = Variable (f ann) n
 mapExpressionAnn f (Call ann e args) = Call (f ann) (mapExpressionAnn f e) (map (mapExpressionAnn f) args)
 mapExpressionAnn f (ArrayAccess ann e i) = ArrayAccess (f ann) (mapExpressionAnn f e) (mapExpressionAnn f i)
+mapExpressionAnn f (AddressOf ann v) = AddressOf (f ann) (mapExpressionAnn f v)
 
 expressionFixity :: Expression ann -> Int
 expressionFixity (Addition ann l r) = 6
@@ -112,6 +114,7 @@ expressionFixity (String ann val) = 9
 expressionFixity (Variable ann name) = 9
 expressionFixity (Call ann callee args) = 9
 expressionFixity (ArrayAccess ann array index) = 9
+expressionFixity (AddressOf ann e) = 9
 
 type Identifier = Text
 

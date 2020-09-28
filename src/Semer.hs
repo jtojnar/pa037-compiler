@@ -337,6 +337,20 @@ typeOf context (ArrayAccess ann array index) =
         errors = arrayErrors ++ indexErrrors ++ indexTypeErrors ++ accessErrors
     in
         (errors, ArrayAccess (ann, resultType) array' index')
+typeOf context (AddressOf ann inner) =
+    let
+        (innerErrors, inner') = typeOf context inner
+        innerType = semType inner'
+
+        icompatibleInnerErrors = case inner of
+            ArrayAccess _ _ _ -> []
+            Variable _ _ -> []
+            ty ->
+                [SemanticError [ann] "You can only get memory addresses for variables and array items."]
+
+        errors = innerErrors ++ icompatibleInnerErrors
+    in
+        (errors, AddressOf (ann, TPtr innerType) inner')
 
 {-| Get type from semantically annotated expression node.
 -}
