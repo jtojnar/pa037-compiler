@@ -255,6 +255,17 @@ typeOf context (Multiplication ann l r) = checkNumericBinOp (\ty -> Multiplicati
 typeOf context (Division ann l r) = checkNumericBinOp (\ty -> Division (ann, ty)) context l r
 typeOf context (Conjunction ann l r) = checkBoolBinOp (\ty -> Conjunction (ann, ty)) context l r
 typeOf context (Disjunction ann l r) = checkBoolBinOp (\ty -> Disjunction (ann, ty)) context l r
+typeOf context (Negation ann inner) =
+    let
+        (innerErrors, inner') = typeOf context inner
+        innerType = semType inner'
+        (mismatchErrors, expectedType) = checkExpression
+            [ (not (isBooleanType innerType), ("Negated value needs to be a boolean.", [expressionAnn inner]))
+            ]
+            TBool
+        errors = innerErrors ++ mismatchErrors
+    in
+        (errors, Negation (ann, expectedType) inner')
 typeOf context (Equality ann l r) = checkEqBinOp (\ty -> Equality (ann, ty)) context l r
 typeOf context (Inequality ann l r) = checkEqBinOp (\ty -> Inequality (ann, ty)) context l r
 typeOf context (LessThan ann l r) = checkOrdBinOp (\ty -> LessThan (ann, ty)) context l r
