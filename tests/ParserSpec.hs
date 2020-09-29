@@ -10,6 +10,7 @@ import Text.Megaparsec (parseMaybe)
 
 default (Text)
 
+nilAnnp :: Parser ()
 nilAnnp = return ()
 
 spec :: Spec

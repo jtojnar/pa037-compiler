@@ -10,6 +10,7 @@ import Test.Hspec
 
 default (Text)
 
+emptyContext :: Context
 emptyContext = Context {
     contextBindings = mempty,
     contextResult = TInt32,

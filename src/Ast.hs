@@ -94,27 +94,27 @@ mapExpressionAnn f (ArrayAccess ann e i) = ArrayAccess (f ann) (mapExpressionAnn
 mapExpressionAnn f (AddressOf ann v) = AddressOf (f ann) (mapExpressionAnn f v)
 
 expressionFixity :: Expression ann -> Int
-expressionFixity (Addition ann l r) = 6
-expressionFixity (Subtraction ann l r) = 6
-expressionFixity (Multiplication ann l r) = 7
-expressionFixity (Division ann l r) = 7
-expressionFixity (Conjunction ann l r) = 3
-expressionFixity (Disjunction ann l r) = 1
-expressionFixity (Equality ann l r) = 4
-expressionFixity (Inequality ann l r) = 4
-expressionFixity (LessThan ann l r) = 4
-expressionFixity (LessThanEqual ann l r) = 4
-expressionFixity (Greater ann l r) = 4
-expressionFixity (GreaterThanEqual ann l r) = 4
-expressionFixity (Number ann val) = 9
-expressionFixity (Boolean ann True) = 9
-expressionFixity (Boolean ann False) = 9
-expressionFixity (Character ann val) = 9
-expressionFixity (String ann val) = 9
-expressionFixity (Variable ann name) = 9
-expressionFixity (Call ann callee args) = 9
-expressionFixity (ArrayAccess ann array index) = 9
-expressionFixity (AddressOf ann e) = 9
+expressionFixity (Addition _ann _l _r) = 6
+expressionFixity (Subtraction _ann _l _r) = 6
+expressionFixity (Multiplication _ann _l _r) = 7
+expressionFixity (Division _ann _l _r) = 7
+expressionFixity (Conjunction _ann _l _r) = 3
+expressionFixity (Disjunction _ann _l _r) = 1
+expressionFixity (Equality _ann _l _r) = 4
+expressionFixity (Inequality _ann _l _r) = 4
+expressionFixity (LessThan _ann _l _r) = 4
+expressionFixity (LessThanEqual _ann _l _r) = 4
+expressionFixity (Greater _ann _l _r) = 4
+expressionFixity (GreaterThanEqual _ann _l _r) = 4
+expressionFixity (Number _ann _val) = 9
+expressionFixity (Boolean _ann _val) = 9
+expressionFixity (Character _ann _val) = 9
+expressionFixity (String _ann _val) = 9
+expressionFixity (Variable _ann _name) = 9
+expressionFixity (Call _ann _callee _args) = 9
+expressionFixity (ArrayAccess _ann _array _index) = 9
+expressionFixity (AddressOf _ann _e) = 9
+expressionFixity (Negation _ann _e) = 9
 
 type Identifier = Text
 
@@ -137,7 +137,6 @@ type Commands ann = [Command ann]
 
 data Command ann
     = Conditional { commandAnn :: ann, commandBranches :: [(Expression ann, Commands ann)], commandMelse :: Maybe (Commands ann) }
-    | ForEach { commandAnn :: ann, commandLoopVar :: Identifier, commandIterable :: Expression ann, commandBody :: Commands ann }
     | While { commandAnn :: ann, commandLoopCond :: Expression ann, commandBody :: Commands ann }
     | Return { commandAnn :: ann, commandReturnVal :: Expression ann }
     | Declaration { commandAnn :: ann, commandVarName :: Identifier, commandVarType :: Type, commandOptAssignment :: Maybe (Expression ann) }

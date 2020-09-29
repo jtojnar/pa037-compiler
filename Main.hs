@@ -5,10 +5,8 @@ module Main where
 
 import Ast (Program, Type)
 import Control.Applicative ((<|>), (<**>), optional)
-import Control.Monad (void)
-import Data.Semigroup ((<>))
 import Data.Maybe (fromMaybe)
-import Data.Text (Text, pack, replicate)
+import Data.Text (Text)
 import Data.Text.IO (getContents, readFile)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -107,20 +105,20 @@ main = do
         Right ast -> handleAst (mkOutputHandler outputPath) outputPath ast contents flags
 
 handleAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program Pos -> Text -> Flags -> IO ()
-handleAst outputHandler outputPath ast contents Flags { finalStage = PrintAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
+handleAst outputHandler _outputPath ast _contents Flags { finalStage = PrintAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
 handleAst outputHandler outputPath ast contents flags =
     case typeCheck ast of
         ([], ast') -> handleTypeCheckedAst outputHandler outputPath ast' flags
-        (errs, ast) -> do
+        (errs, _ast) -> do
             T.hPutStr stderr (semErrorsPretty contents errs)
             exitFailure
 
 handleTypeCheckedAst :: ((Handle -> IO ()) -> IO ()) -> FilePath -> Program (Pos, Type) -> Flags -> IO ()
-handleTypeCheckedAst outputHandler outputPath ast Flags { finalStage = CheckAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
+handleTypeCheckedAst outputHandler _outputPath ast Flags { finalStage = CheckAst } = outputHandler $ \output -> TL.hPutStrLn output (TL.pack (show ast))
 handleTypeCheckedAst outputHandler outputPath ast flags@(Flags { inputPath }) = handleLlvmIr outputHandler outputPath (ppllvm (codegen inputPath ast)) flags
 
 handleLlvmIr :: ((Handle -> IO ()) -> IO ()) -> FilePath -> TL.Text -> Flags -> IO ()
-handleLlvmIr outputHandler outputPath ir Flags { finalStage = EmitIr } = outputHandler $ \output -> TL.hPutStrLn output ir
+handleLlvmIr outputHandler _outputPath ir Flags { finalStage = EmitIr } = outputHandler $ \output -> TL.hPutStrLn output ir
 handleLlvmIr outputHandler outputPath ir flags = do
     (status, assembly, stderrText) <- readProcessWithExitCode "llc" ["-o", "-"] (TL.unpack ir)
     hPutStr stderr stderrText
@@ -129,8 +127,8 @@ handleLlvmIr outputHandler outputPath ir flags = do
         _ -> exitWith status
 
 handleAssembly :: ((Handle -> IO ()) -> IO ()) -> FilePath -> String -> Flags -> IO ()
-handleAssembly outputHandler outputPath assembly Flags { finalStage = ConvertToAssembly } = outputHandler $ \output -> hPutStr output assembly
-handleAssembly outputHandler outputPath assembly flags = do
+handleAssembly outputHandler _outputPath assembly Flags { finalStage = ConvertToAssembly } = outputHandler $ \output -> hPutStr output assembly
+handleAssembly _outputHandler outputPath assembly _flags = do
     (status, _, stderrText) <- readProcessWithExitCode "clang" ["-x", "assembler", "-", "-o", outputPath] assembly
     hPutStr stderr stderrText
     exitWith status
@@ -141,7 +139,7 @@ semErrorsPretty contents errors = T.intercalate "\n" (map printError errors)
   where
     allLines = T.lines contents
     printError (SemanticError poss msg) = T.concat (map printPos poss) <> msg <> "\n"
-    printPos pos@(Pos sp) =
+    printPos (Pos sp) =
         T.pack (sourceName sp) <> ":" <> lineNoStr <> ":" <> tshow col <> ":\n" <>
         lineSpaces <> " |\n" <>
         lineNoStr <> " | " <> line <> "\n" <>

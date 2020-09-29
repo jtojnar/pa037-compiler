@@ -6,18 +6,12 @@
 module Semer (typeCheck, typeCheckCommands, typeCheckFunction, Context(..), SemanticError(..)) where
 
 import Ast
-import Control.Applicative ((<|>), optional, some, many)
-import Control.Monad (when)
 import Data.HashMap (Map)
 import Data.Maybe (isJust)
-import Data.Semigroup ((<>))
 import Data.Text (Text)
-import Data.Void
-import Data.Either (isLeft, isRight)
 import Helpers
 import Printer
 import qualified Data.HashMap as Map
-import Text.Megaparsec (SourcePos)
 
 default (Text, Int)
 
@@ -47,7 +41,7 @@ typeCheck program =
         (concatMap fst checkedFunctions, map snd checkedFunctions)
 
 typeCheckFunction :: Map Identifier Type -> (Identifier, FunctionDefinition ann) -> ([SemanticError ann], (Identifier, FunctionDefinition (ann, Type)))
-typeCheckFunction functions (name, FunctionDefinition endAnn args result variadic Nothing) = ([], (name, FunctionDefinition (endAnn, TNil) args result variadic Nothing))
+typeCheckFunction _functions (name, FunctionDefinition endAnn args result variadic Nothing) = ([], (name, FunctionDefinition (endAnn, TNil) args result variadic Nothing)) -- extern function has nothing to check.
 typeCheckFunction functions (name, FunctionDefinition endAnn args result variadic (Just body)) =
     let
         context = Context {
@@ -87,16 +81,16 @@ typeCheckCommand context (Conditional ann branches melse) =
                 ctype = semType condition'
                 mismatchErrors = if tEquals ctype TBool then [] else [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")]
                 (bodyErrors, commands', context') = typeCheckCommands context body
-                errors = cErrors ++ mismatchErrors ++ bodyErrors
-            in (errors, (condition', commands'), context')) branches
+                branchErrors = cErrors ++ mismatchErrors ++ bodyErrors
+            in (branchErrors, (condition', commands'), context')) branches
         (branchesErrors, branches', branchesContexts) = unzip3 branchesChecks
 
         (elseErrors, melse', elseContext') = case melse of
             Just elseBody ->
                 let
-                    (errors, elseBody', context') = typeCheckCommands context elseBody
+                    (elseErrors', elseBody', context') = typeCheckCommands context elseBody
                 in
-                    (errors, Just elseBody', context')
+                    (elseErrors', Just elseBody', context')
             Nothing -> ([], Nothing, context)
 
         errors = concat branchesErrors ++ elseErrors
@@ -110,21 +104,12 @@ typeCheckCommand context (Conditional ann branches melse) =
         }
     in
         (errors, Conditional (ann, TNil) branches' melse', newContext)
-typeCheckCommand context (ForEach ann item collection body) =
-    let
-        (cErrors, collection') = typeOf context collection
-        ctype = semType collection'
-        -- TODO: check that ctype is a iterable
-        (bodyErrors, body', context') = typeCheckCommands context body
-        errors = cErrors ++ bodyErrors
-    in
-        (errors, ForEach (ann, TNil) item collection' body', context) -- context unchanged
 typeCheckCommand context (While ann condition body) =
     let
         (cErrors, condition') = typeOf context condition
         ctype = semType condition'
         mismatchErrors = if tEquals ctype TBool then [] else [SemanticError [expressionAnn condition] ("Condition needs to be of type bool, " <> ppType ctype <> " given.")]
-        (bodyErrors, body', context') = typeCheckCommands context body
+        (bodyErrors, body', _context') = typeCheckCommands context body
         errors = cErrors ++ mismatchErrors ++ bodyErrors
     in
         (errors, While (ann, TNil) condition' body', context)
@@ -138,25 +123,25 @@ typeCheckCommand context (Return ann expr) =
         errors = exprErrors ++ mismatchErrors
     in
         (errors, Return (ann, TNil) expr', context')
-typeCheckCommand context (Declaration ann name ty mexpr) =
+typeCheckCommand context (Declaration ann name declaredType mexpr) =
     case mexpr of
         Just expr ->
             let
                 (exprErrors, expr') = typeOf context expr
                 texpr = semType expr'
-                mismatchErrors = if tEquals texpr ty then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType ty <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
+                mismatchErrors = if tEquals texpr declaredType then [] else [SemanticError [ann] ("Variable " <> name <> " was declared as ‘" <> ppType declaredType <> "’ but it was set to ‘" <> ppType texpr <> "’.")]
                 errors = exprErrors ++ mismatchErrors
-                ty' = case ty of
+                declaredType' = case declaredType of
                     TBot -> texpr -- Type omitted and inferred from value type
                     ty -> ty
-                context' = contextBindName name ty' context
+                context' = contextBindName name declaredType' context
             in
-                (errors, Declaration (ann, TNil) name ty' (Just expr'), context')
+                (errors, Declaration (ann, TNil) name declaredType' (Just expr'), context')
         Nothing ->
             let
-                context' = contextBindName name ty context
+                context' = contextBindName name declaredType context
             in
-                ([], Declaration (ann, TNil) name ty Nothing, context')
+                ([], Declaration (ann, TNil) name declaredType Nothing, context')
 typeCheckCommand context (Assignment ann lhs rhs) =
     let
         (scopeErrors, lhs') = typeOf context lhs
@@ -170,7 +155,7 @@ typeCheckCommand context (Assignment ann lhs rhs) =
         errors = scopeErrors ++ terrors ++ mismatchErrors
     in
         (errors, Assignment (ann, TNil) lhs' rhs', context)
-typeCheckCommand context call@(CCall ann callee args) =
+typeCheckCommand context (CCall ann callee args) =
     let
         (errors, rhs') = typeOf context (Call ann callee args)
         Call _ann callee' args' = rhs'
@@ -277,10 +262,10 @@ typeOf context (LessThan ann l r) = checkOrdBinOp (\ty -> LessThan (ann, ty)) co
 typeOf context (LessThanEqual ann l r) = checkOrdBinOp (\ty -> LessThanEqual (ann, ty)) context l r
 typeOf context (Greater ann l r) = checkOrdBinOp (\ty -> Greater (ann, ty)) context l r
 typeOf context (GreaterThanEqual ann l r) = checkOrdBinOp (\ty -> GreaterThanEqual (ann, ty)) context l r
-typeOf context (Number ann val) = ([], Number (ann, TInt32) val)
-typeOf context (Boolean ann val) = ([], Boolean (ann, TBool) val)
-typeOf context (Character ann val) = ([], Character (ann, TChar) val)
-typeOf context (String ann val) = ([], String (ann, TPtr TChar) val)
+typeOf _context (Number ann val) = ([], Number (ann, TInt32) val)
+typeOf _context (Boolean ann val) = ([], Boolean (ann, TBool) val)
+typeOf _context (Character ann val) = ([], Character (ann, TChar) val)
+typeOf _context (String ann val) = ([], String (ann, TPtr TChar) val)
 typeOf context (Variable ann name) =
     case contextLookupBinding name context of
         Just ty -> ([], Variable (ann, ty) name)
@@ -304,18 +289,18 @@ typeOf context (Call ann callee args) =
                                         (argErrors, arg') = typeOf context arg
                                         actual = semType arg'
                                         mismatchErrors = if tEquals expected actual then [] else [SemanticError [ann] ("Argument " <> tshow n <> " of function ‘" <> ppExpr callee <> "’ requires a value of type ‘" <> ppType expected <> "’ but ‘" <> ppType actual <> "’ was received.")]
-                                        errors = argErrors ++ mismatchErrors
+                                        singleArgErrors = argErrors ++ mismatchErrors
                                     in
-                                        (errors, arg')
+                                        (singleArgErrors, arg')
                                 )
                                 (fnargs ++ repeat TBot) -- Variadic arguments are checked against TBot since we have no idea what their expected type is.
                                 args
-                                [1..]
+                                [ 1 :: Int .. ]
                         argumentValueErrors = concatMap fst argChecks
                         fnargs' = map snd argChecks
-                        errors = argumentCountErrors ++ argumentValueErrors
+                        argumentsErrors = argumentCountErrors ++ argumentValueErrors
                     in
-                        (errors, result, fnargs')
+                        (argumentsErrors, result, fnargs')
                 _ ->
                     let
                         exprOrName =
@@ -335,13 +320,13 @@ typeOf context (ArrayAccess ann array index) =
         indexTypeErrors = case semType index' of
             TInt32 -> []
             TChar -> []
-            ty ->
+            _ty ->
                 [SemanticError [ann] ("‘" <> ppExpr index <> "’ is not an integer so it cannot be an index.")]
 
         (accessErrors, resultType) = case semType array' of
             TPtr ty -> ([], ty)
             TArray _size ty -> ([], ty)
-            ty ->
+            _ty ->
                 let
                     exprOrName =
                         case array of
@@ -361,7 +346,7 @@ typeOf context (AddressOf ann inner) =
         icompatibleInnerErrors = case inner of
             ArrayAccess _ _ _ -> []
             Variable _ _ -> []
-            ty ->
+            _ty ->
                 [SemanticError [ann] "You can only get memory addresses for variables and array items."]
 
         errors = innerErrors ++ icompatibleInnerErrors

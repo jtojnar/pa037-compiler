@@ -1,17 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
-module Parser (Pos(..), command, program, expression, pos) where
+module Parser (Pos(..), Parser, command, program, expression, pos) where
 
 import Ast
 import Control.Applicative ((<|>), liftA2, optional, some, many)
-import Data.Char (isDigit, ord)
+import Data.Char (ord)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
-import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getOffset, getSourcePos, manyTill, parseError, satisfy, sepBy, sourceName, sourceLine, sourceColumn, unPos)
+import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getOffset, getSourcePos, manyTill, parseError, sepBy, sourceName, sourceLine, sourceColumn, unPos)
 import Text.Megaparsec.Error (ErrorItem(..), ParseError(..))
 import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space1, string)
 import Text.Megaparsec.Char.Lexer (charLiteral, space, skipLineComment, skipBlockCommentNested)
@@ -23,7 +24,7 @@ default (Text)
 newtype Pos = Pos { sp :: SourcePos }
 
 instance Show Pos where
-    show (Pos sp) = "'" <> sourceName sp <> ":" <> show (unPos (sourceLine sp)) <> ":" <> show (unPos (sourceColumn sp)) <> "'"
+    show (Pos {sp}) = "'" <> sourceName sp <> ":" <> show (unPos (sourceLine sp)) <> ":" <> show (unPos (sourceColumn sp)) <> "'"
 
 pos :: Parser Pos
 pos = Pos <$> getSourcePos
@@ -84,7 +85,7 @@ bool = ((string "true" *> pure True <|> string "false" *> pure False) <?> "boole
 parenthisedTypes :: [Type] -> Type
 parenthisedTypes [] = TNil
 parenthisedTypes [ty] = ty
-parenthisedTypes tup = error "Tuples not yet supported."
+parenthisedTypes _tup = error "Tuples not yet supported."
 
 typeVal :: Parser Type
 typeVal
@@ -104,14 +105,14 @@ arguments = ((,) <$> identifier <* text ":" <*> typeVal) `sepBy` text ","
 funDef :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
 funDef annp = handleFunDef <$> (text "fn" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> (text "{" *> commands annp) <*> annp <* text "}"
   where
-    handleFunDef name arguments result body endAnn = (name, FunctionDefinition endAnn arguments result False (Just body))
+    handleFunDef name args result body endAnn = (name, FunctionDefinition endAnn args result False (Just body))
 
 {-| Define external function.
 Unlike regular functions, these can be variadic. -}
 extern :: Parser ann -> Parser (Identifier, FunctionDefinition ann)
 extern annp = handleExtern <$> ((text "variadic" *> pure True) <|> pure False) <*> (text "extern" *> identifier) <*> (text "(" *> arguments) <*> (text ")" *> text "->" *> typeVal) <*> annp <* text ";"
   where
-    handleExtern variadic name arguments result endAnn = (name, FunctionDefinition endAnn arguments result variadic Nothing)
+    handleExtern variadic name args result endAnn = (name, FunctionDefinition endAnn args result variadic Nothing)
 
 commands :: Parser ann -> Parser (Commands ann)
 commands annp = many (command annp)
@@ -126,7 +127,6 @@ infixl 4 <*.*>
 command :: Parser ann -> Parser (Command ann)
 command annp
     = (Conditional <$> annp <*> ((:) <$> ((,) <$> (text "if" *> expression annp) <*> block annp) <*> many ((,) <$> (text "elseif" *> expression annp) <*> block annp)) <*> optional (text "else" *> block annp) <?> "conditional statement")
-    <|> (ForEach <$> annp <*> (text "for" *> identifier) <*> (text "in" *> expression annp) <*> block annp <?> "for..in loop")
     <|> (While <$> annp <*> (text "while" *> expression annp) <*> block annp <?> "while loop")
     <|> (Return <$> annp <*> (text "return" *> expression annp) <* text ";" <?> "return statement")
     <|> (Declaration <$> annp <*> (text "let" *> identifier) <*.*> (((,) <$> (text ":" *> typeVal) <*> optional (assignRight annp)) <|> ((,) <$> pure TBot <*> (Just <$> assignRight annp))) <* text ";" <?> "declaration")
