@@ -38,6 +38,7 @@ ppExpr' fixity expr@(String _ann val) = parenthesize fixity (expressionFixity ex
 ppExpr' fixity expr@(Variable _ann name) = parenthesize fixity (expressionFixity expr) $ name
 ppExpr' fixity expr@(Call _ann callee args) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) callee <> "(" <> (T.intercalate ", " (map (ppExpr' (expressionFixity expr)) args)) <> ")"
 ppExpr' fixity expr@(ArrayAccess _ann array index) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) array <> "[" <> ppExpr' (expressionFixity expr) index <> "]"
+ppExpr' fixity expr@(ProductFieldAccess _ann prod name) = parenthesize fixity (expressionFixity expr) $ ppExpr' (expressionFixity expr) prod <> "." <> name
 ppExpr' fixity expr@(AddressOf _ann e) = parenthesize fixity (expressionFixity expr) $ "&" <> ppExpr' (expressionFixity expr) e
 
 ppType :: Type -> Text
@@ -45,8 +46,8 @@ ppType TBot = "⊥"
 ppType TInt32 = "i32"
 ppType TChar = "char"
 ppType TBool = "bool"
-ppType TNil = "()"
 ppType (TPtr t) = "ptr " <> ppType t
 ppType (TArray (Number _ size) t) = "[" <> ppType t <> "; " <> tshow size <> "]"
 ppType (TArray sizeExpr t) = "[" <> ppType t <> "; " <> ppExpr sizeExpr <> "]"
+ppType (TProduct members) = "{" <> T.intercalate "," (map (\(name, t) -> name <> ":" <> ppType t) members) <> "}"
 ppType (Function args result variadic) = "fn(" <> T.intercalate ", " (map ppType args) <> (if variadic then ", …" else "") <> ") -> " <> ppType result

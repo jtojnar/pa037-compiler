@@ -4,8 +4,11 @@ module Ast where
 
 import Data.Text (Text)
 
-data Type = TBot | TInt32 | TChar | TBool | TNil | TPtr Type | TArray (Expression ()) Type | Function [Type] Type Bool
+data Type = TBot | TInt32 | TChar | TBool | TPtr Type | TArray (Expression ()) Type | Function [Type] Type Bool | TProduct [(Identifier, Type)]
     deriving (Eq, Show)
+
+tnil :: Type
+tnil = TProduct []
 
 isNumericType :: Type -> Bool
 isNumericType TInt32 = True
@@ -20,7 +23,6 @@ isEqType :: Type -> Bool
 isEqType TInt32 = True
 isEqType TChar = True
 isEqType TBool = True
-isEqType TNil = True
 isEqType (TPtr _) = True
 isEqType (TArray _ _) = True
 isEqType _ = False
@@ -67,6 +69,7 @@ data Expression ann
     | Variable { expressionAnn :: ann, expressionVarName :: Identifier }
     | Call { expressionAnn :: ann, expressionCallee :: Expression ann, expressionArgs :: [Expression ann] }
     | ArrayAccess { expressionAnn :: ann, expressionIndexable :: Expression ann, expressionIndex :: Expression ann }
+    | ProductFieldAccess { expressionAnn :: ann, expressionStruct :: Expression ann, expressionFieldName :: Identifier }
     | AddressOf { expressionAnn :: ann, expressionInner :: Expression ann }
     deriving (Eq, Show)
 
@@ -91,6 +94,7 @@ mapExpressionAnn f (String ann v) = String (f ann) v
 mapExpressionAnn f (Variable ann n) = Variable (f ann) n
 mapExpressionAnn f (Call ann e args) = Call (f ann) (mapExpressionAnn f e) (map (mapExpressionAnn f) args)
 mapExpressionAnn f (ArrayAccess ann e i) = ArrayAccess (f ann) (mapExpressionAnn f e) (mapExpressionAnn f i)
+mapExpressionAnn f (ProductFieldAccess ann e n) = ProductFieldAccess (f ann) (mapExpressionAnn f e) n
 mapExpressionAnn f (AddressOf ann v) = AddressOf (f ann) (mapExpressionAnn f v)
 
 expressionFixity :: Expression ann -> Int
@@ -113,6 +117,7 @@ expressionFixity (String _ann _val) = 9
 expressionFixity (Variable _ann _name) = 9
 expressionFixity (Call _ann _callee _args) = 9
 expressionFixity (ArrayAccess _ann _array _index) = 9
+expressionFixity (ProductFieldAccess _ann _array _index) = 9
 expressionFixity (AddressOf _ann _e) = 9
 expressionFixity (Negation _ann _e) = 9
 

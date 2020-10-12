@@ -155,22 +155,22 @@ emitIsEqual :: Ast.Type -> Operand -> Operand -> Codegen Operand
 emitIsEqual TBool = Instr.icmp IntegerPredicate.EQ
 emitIsEqual TChar = Instr.icmp IntegerPredicate.EQ
 emitIsEqual TInt32 = Instr.icmp IntegerPredicate.EQ
-emitIsEqual TNil = \_ _ -> return true -- Nil tuples are all the same.
 emitIsEqual (TPtr _) = Instr.icmp IntegerPredicate.EQ -- icmp supports pointer comparisons too.
 emitIsEqual (TArray _ _) = Instr.icmp IntegerPredicate.EQ -- Arrays are just pointers.
 emitIsEqual TBot = error "Bottoms should not be compared"
 emitIsEqual (Function _ _ _) = error "Functions should not be compared"
+emitIsEqual (TProduct _) = error "Product types should not be compared"
 
 {-| Generate a Value for the result of comparison of two operands of given type for inequality. -}
 emitIsNotEqual :: Ast.Type -> Operand -> Operand -> Codegen Operand
 emitIsNotEqual TBool = Instr.icmp IntegerPredicate.NE
 emitIsNotEqual TChar = Instr.icmp IntegerPredicate.NE
 emitIsNotEqual TInt32 = Instr.icmp IntegerPredicate.NE
-emitIsNotEqual TNil = \_ _ -> return false -- Nil tuples are all the same.
 emitIsNotEqual (TPtr _) = Instr.icmp IntegerPredicate.NE
 emitIsNotEqual (TArray _ _) = Instr.icmp IntegerPredicate.NE
 emitIsNotEqual TBot = error "Bottoms should not be compared"
 emitIsNotEqual (Function _ _ _) = error "Functions should not be compared"
+emitIsNotEqual (TProduct _) = error "Product types should not be compared"
 
 data ValueKind = Lval | Rval deriving (Eq, Show)
 
@@ -261,6 +261,13 @@ exprCodegen vk (Ast.ArrayAccess _ann array index) = do
     case vk of
         Rval -> Instr.load indexedValue defaultAlignment
         Lval -> return indexedValue
+exprCodegen vk (Ast.ProductFieldAccess _ann prod index) = do
+    prod' <- exprCodegen Lval prod
+    let index' = BC.int32 (read (T.unpack index))
+    indexedValue <- Instr.gep prod' [BC.int32 0, index']
+    case vk of
+        Rval -> Instr.load indexedValue defaultAlignment
+        Lval -> return indexedValue
 exprCodegen _vk (Ast.AddressOf _ann e) = exprCodegen Lval e
 
 
@@ -346,7 +353,6 @@ codegenType :: Ast.Type -> AST.Type
 codegenType TInt32 = Type.i32
 codegenType TChar = Type.i8 -- We will use UTF-8 for simplicity.
 codegenType TBool = Type.i1
-codegenType TNil = Type.void
 codegenType (TPtr nested) = Type.ptr (codegenType nested)
 codegenType (TArray (Number _ size) nested) = ArrayType (fromIntegral size) (codegenType nested)
 codegenType (TArray _ nested) = Type.ptr (codegenType nested) -- Arrays with dynamic size are just pointers.
@@ -356,6 +362,8 @@ codegenType (Ast.Function args result variadic) =
         argumentTypes = map codegenType args,
         isVarArg = variadic
     }
+codegenType (TProduct []) = Type.void
+codegenType (TProduct fields) = Type.StructureType False (map (codegenType . snd) fields)
 codegenType TBot = error "Cannot realize bottom type."
 
 identifierToName :: Identifier -> Name

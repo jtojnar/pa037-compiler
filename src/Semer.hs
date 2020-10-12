@@ -7,6 +7,7 @@ module Semer (typeCheck, typeCheckCommands, typeCheckFunction, Context(..), Sema
 
 import Ast
 import Data.HashMap (Map)
+import Data.List (findIndex)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Helpers
@@ -41,7 +42,7 @@ typeCheck program =
         (concatMap fst checkedFunctions, map snd checkedFunctions)
 
 typeCheckFunction :: Map Identifier Type -> (Identifier, FunctionDefinition ann) -> ([SemanticError ann], (Identifier, FunctionDefinition (ann, Type)))
-typeCheckFunction _functions (name, FunctionDefinition endAnn args result variadic Nothing) = ([], (name, FunctionDefinition (endAnn, TNil) args result variadic Nothing)) -- extern function has nothing to check.
+typeCheckFunction _functions (name, FunctionDefinition endAnn args result variadic Nothing) = ([], (name, FunctionDefinition (endAnn, tnil) args result variadic Nothing)) -- extern function has nothing to check.
 typeCheckFunction functions (name, FunctionDefinition endAnn args result variadic (Just body)) =
     let
         context = Context {
@@ -54,7 +55,7 @@ typeCheckFunction functions (name, FunctionDefinition endAnn args result variadi
         missingReturnErrors = if contextReturned newContext then [] else [SemanticError [endAnn] ("Function “" <> name <> "” does not contain a return statement in all branches.")]
     in
         -- The type part of end annotation returned in FunctionDefinition is not used but it is nicer than parametrizing everything by a second annotation type.
-        (bodyErrors ++ missingReturnErrors, (name, FunctionDefinition (endAnn, TNil) args result variadic (Just newBody)))
+        (bodyErrors ++ missingReturnErrors, (name, FunctionDefinition (endAnn, tnil) args result variadic (Just newBody)))
 
 {-| Type-check body of a function
 -}
@@ -103,7 +104,7 @@ typeCheckCommand context (Conditional ann branches melse) =
             contextReturned = contextReturned context || (all contextReturned (branchesContexts ++ [elseContext']) && isJust melse)
         }
     in
-        (errors, Conditional (ann, TNil) branches' melse', newContext)
+        (errors, Conditional (ann, tnil) branches' melse', newContext)
 typeCheckCommand context (While ann condition body) =
     let
         (cErrors, condition') = typeOf context condition
@@ -112,7 +113,7 @@ typeCheckCommand context (While ann condition body) =
         (bodyErrors, body', _context') = typeCheckCommands context body
         errors = cErrors ++ mismatchErrors ++ bodyErrors
     in
-        (errors, While (ann, TNil) condition' body', context)
+        (errors, While (ann, tnil) condition' body', context)
 typeCheckCommand context (Return ann expr) =
     let
         expectedType = contextResult context
@@ -122,7 +123,7 @@ typeCheckCommand context (Return ann expr) =
         context' = context { contextReturned = True }
         errors = exprErrors ++ mismatchErrors
     in
-        (errors, Return (ann, TNil) expr', context')
+        (errors, Return (ann, tnil) expr', context')
 typeCheckCommand context (Declaration ann name declaredType mexpr) =
     case mexpr of
         Just expr ->
@@ -136,12 +137,12 @@ typeCheckCommand context (Declaration ann name declaredType mexpr) =
                     ty -> ty
                 context' = contextBindName name declaredType' context
             in
-                (errors, Declaration (ann, TNil) name declaredType' (Just expr'), context')
+                (errors, Declaration (ann, tnil) name declaredType' (Just expr'), context')
         Nothing ->
             let
                 context' = contextBindName name declaredType context
             in
-                ([], Declaration (ann, TNil) name declaredType Nothing, context')
+                ([], Declaration (ann, tnil) name declaredType Nothing, context')
 typeCheckCommand context (Assignment ann lhs rhs) =
     let
         (scopeErrors, lhs') = typeOf context lhs
@@ -154,13 +155,13 @@ typeCheckCommand context (Assignment ann lhs rhs) =
         mismatchErrors = if tEquals tr tl then [] else [SemanticError [ann] (varOrElse <> " " <> ppExpr lhs <> " is declared as ‘" <> ppType tl <> "’ but it was set to ‘" <> ppType tr <> "’.")]
         errors = scopeErrors ++ terrors ++ mismatchErrors
     in
-        (errors, Assignment (ann, TNil) lhs' rhs', context)
+        (errors, Assignment (ann, tnil) lhs' rhs', context)
 typeCheckCommand context (CCall ann callee args) =
     let
         (errors, rhs') = typeOf context (Call ann callee args)
         Call _ann callee' args' = rhs'
     in
-        (errors, CCall (ann, TNil) callee' args', context)
+        (errors, CCall (ann, tnil) callee' args', context)
 
 checkNumericBinOp :: (Type -> Expression (ann, Type) -> Expression (ann, Type) -> Expression (ann, Type)) -> Context -> Expression ann -> Expression ann -> ([SemanticError ann], Expression (ann, Type))
 checkNumericBinOp mkNode context l r =
@@ -338,6 +339,26 @@ typeOf context (ArrayAccess ann array index) =
         errors = arrayErrors ++ indexErrrors ++ indexTypeErrors ++ accessErrors
     in
         (errors, ArrayAccess (ann, resultType) array' index')
+typeOf context (ProductFieldAccess ann prod name) =
+    let
+        (prodErrors, prod') = typeOf context prod
+        (accessErrors, resultIndex, resultType) = case semType prod' of
+            TProduct fields ->
+                case findIndex ((== name) . fst) fields of
+                    Just index -> ([], tshow index, snd (fields !! index))
+                    Nothing -> ([SemanticError [ann] ("Missing field ‘" <> name <> "’.")], "-1", TBot)
+            _ty ->
+                let
+                    exprOrName =
+                        case prod of
+                            Variable _ _ -> "Name"
+                            _ -> "Expression"
+                in
+                    ([SemanticError [ann] (exprOrName <> " ‘" <> ppExpr prod <> "’ is not a product.")], "-1", TBot)
+
+        errors = prodErrors ++ accessErrors
+    in
+        (errors, ProductFieldAccess (ann, resultType) prod' resultIndex) -- TODO: pass index using better method
 typeOf context (AddressOf ann inner) =
     let
         (innerErrors, inner') = typeOf context inner

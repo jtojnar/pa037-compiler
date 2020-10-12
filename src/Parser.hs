@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Void
 import qualified Data.Text as T
+import Helpers
 import Text.Megaparsec ((<?>), Parsec, SourcePos, eof, getOffset, getSourcePos, manyTill, parseError, sepBy, sourceName, sourceLine, sourceColumn, unPos)
 import Text.Megaparsec.Error (ErrorItem(..), ParseError(..))
 import Text.Megaparsec.Char (alphaNumChar, char, digitChar, space1, string)
@@ -83,15 +84,15 @@ bool = ((string "true" *> pure True <|> string "false" *> pure False) <?> "boole
 -- NON-TERMINALS
 
 parenthisedTypes :: [Type] -> Type
-parenthisedTypes [] = TNil
-parenthisedTypes [ty] = ty
-parenthisedTypes _tup = error "Tuples not yet supported."
+parenthisedTypes [ty] = ty -- single type in parentheses is a single type
+parenthisedTypes fields = TProduct (zip (map tshow [ 0 :: Int ..]) fields)
 
 typeVal :: Parser Type
 typeVal
     = ((pure TInt32 <* text "i32"
     <|> pure TChar <* text "char"
     <|> pure parenthisedTypes <*> (text "(" *> (typeVal `sepBy` text ",") <* text ")")
+    <|> pure TProduct <*> (text "{" *> (((,) <$> (identifier <* text ":") <*> typeVal) `sepBy` text ",") <* text "}")
     <|> pure TPtr <* text "ptr" <*> typeVal
     <|> flip TArray <$> (text "[" *> typeVal <* text ";") <*> (expression (return ()) <* text "]") -- TODO: wire in annotations
     <|> pure TBool <* text "bool") <?> "type")
@@ -223,7 +224,7 @@ atom annp
 
 {-| Parse a lvalue, an expression that can be assigned to. -}
 lvalue :: Parser ann -> Parser (Expression ann)
-lvalue annp = callOrUse <$> annp <*> identifier <*> many (callArgs annp <|> arrayAccessor annp)
+lvalue annp = callOrUse <$> annp <*> identifier <*> many (callArgs annp <|> arrayAccessor annp <|> productFieldAccessor annp)
 
 {-| Identifier can refer to a variable when by itself,
 a function name when followed by a list of arguments in parentheses,
@@ -233,6 +234,7 @@ or even call item of an array that was returned by a function. -}
 callOrUse :: ann -> Identifier -> [Expression ann -> Expression ann] -> Expression ann
 callOrUse ann name actions = foldl (\expr action -> action expr) (Variable ann name) actions
 
-callArgs, arrayAccessor :: Parser ann -> Parser (Expression ann -> Expression ann)
+callArgs, arrayAccessor, productFieldAccessor :: Parser ann -> Parser (Expression ann -> Expression ann)
 callArgs annp = flip . Call <$> annp <*> (text "(" *> (expression annp `sepBy` text ",") <* text ")") <?> "function arguments"
 arrayAccessor annp = flip . ArrayAccess <$> annp <*> (text "[" *> expression annp <* text "]") <?> "array accessor"
+productFieldAccessor annp = flip . ProductFieldAccess <$> annp <*> (text "." *> identifier) <?> "product field accessor"
