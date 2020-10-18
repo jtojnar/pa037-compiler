@@ -1,0 +1,122 @@
+// Tic Tac Toe in C. V1.0 by James 26/05/2019
+// Source: https://gist.github.com/JamesC01/479fca5e0a9074e39656faaccb038763
+
+variadic extern printf(s1: ptr char) -> i32;
+variadic extern scanf(s1: ptr char) -> ();
+variadic extern system(s1: ptr char) -> ();
+
+fn size() -> i32 {
+    return 3;
+}
+
+// Draws the board along with rows/cols, numbered.
+fn draw_board(board : ptr char) -> i32 {
+    // system("clear");
+    printf("# 1 2 3\n");
+
+    // Rows
+
+    let i = 0;
+    let n = 0;
+    while i < size() {
+        // Columns
+        printf("%d ", i + 1);
+        let j = 0;
+        while (j < size()) {
+            printf("%c ", board[n]);
+            n = n + 1;
+            j = j + 1;
+        }
+        i = i + 1;
+        printf("\n");
+    }
+    return 0;
+}
+
+// Initializes board to '-' characters.
+fn init_board(board : ptr char) -> i32 {
+    let i = 0;
+    while i < size() * size() {
+        board[i] = '-';
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Returns true if the piece was successfully placed,
+// false if the position was invalid or already taken.
+fn place(board : ptr char, player : char) -> bool {
+    let row : i32;
+    let col : i32;
+
+    printf("%c, pick your position <row> <column>: ", player, size() - 1);
+    scanf("%d", &row);
+    scanf("%d", &col);
+
+    let pos = (col - 1) + (row - 1) * size();
+
+    if pos >= 0 && pos < size() * size() {
+        if board[pos] == 'x' || board[pos] == 'o' {
+            return false;
+        }
+
+        board[pos] = player;
+        return true;
+    }
+
+    return false;
+}
+
+// Returns true if there are three of the same chars in a row.
+// b = board, p = player. Shortened for readability.
+fn check(b : ptr char, p : char) -> bool {
+    // Check rows
+    if b[0] == p && b[1] == p && b[2] == p { return true; }
+    if b[3] == p && b[4] == p && b[5] == p { return true; }
+    if b[6] == p && b[7] == p && b[8] == p { return true; }
+
+
+    // Check columns
+    if b[0] == p && b[3] == p && b[6] == p { return true; }
+    if b[1] == p && b[4] == p && b[7] == p { return true; }
+    if b[2] == p && b[5] == p && b[8] == p { return true; }
+
+
+    // Check diagonals
+    if b[0] == p && b[4] == p && b[8] == p { return true; }
+    if b[2] == p && b[4] == p && b[6] == p { return true; }
+
+    // If no one won, return false
+    return false;
+}
+
+fn main() -> i32 {
+    let board : [char; size() * size()];
+    let player = 'x';
+    init_board(board);
+
+    while (true) {
+        draw_board(board);
+
+        if (place(board, player)) {
+            if (check(board, player)) {
+                draw_board(board);
+                printf("-----------------------------\n");
+                printf("Player %c wins!!!\n", player);
+                printf("-----------------------------\n");
+
+                return 0;
+            }
+
+            printf("Swapping player %c -> ", player);
+            if player == 'x' {
+                player = 'o';
+            } else {
+                player = 'x';
+            }
+            printf("%c.\n", player);
+        }
+    }
+
+    return 0;
+}
